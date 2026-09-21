@@ -1,0 +1,24 @@
+{
+  "name": "careerconnect",
+  "version": "1.0.0",
+  "description": "CareerConnect is an online platform designed to help job seekers manage their job search activities. The platform allows users to create profiles, upload and manage resumes, explore job opportunities, monitor submitted applications, and track their application progress.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hinduino/CareerConnect.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Hinduino/CareerConnect/issues"
+  },
+  "homepage": "https://github.com/Hinduino/CareerConnect#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
