@@ -2,8 +2,8 @@ import { useState } from 'react';
 
 function Navbar() {
   // Hardcoded state for Sprint 1 testing purposes
-  const [email, setEmail] = useState('testuser@example.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSignUp = async () => {
     try {
@@ -42,9 +42,21 @@ function Navbar() {
           <li><a href="#features">Features</a></li>
         </ul>
 
-        <div className="navbar-actions">
+
+        <div className="navbar-actions" style={{ display: 'flex', gap: '10px' }}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <button type="button">Log In</button>
-          {/* Added the onClick event to trigger the API call */}
           <button type="button" onClick={handleSignUp}>Sign Up</button>
         </div>
       </nav>
