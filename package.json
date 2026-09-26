@@ -19,7 +19,11 @@
   },
   "homepage": "https://github.com/Hinduino/CareerConnect#readme",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.3",
     "express": "^5.2.1",
-    "cors": "^2.8.5"
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.10.2"
   }
 }
