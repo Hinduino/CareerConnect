@@ -72,18 +72,6 @@ body {
   gap: 1rem;
 }
 
-.resume-user-id-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  max-width: 400px;
-}
-
-.resume-user-id-field label {
-  font-size: 0.85rem;
-  color: #555;
-}
-
 .resume-hint {
   color: #777;
 }

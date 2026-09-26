@@ -1,18 +1,17 @@
 const express = require("express");
 const multer = require("multer");
-const mongoose = require("mongoose");
 const Resume = require("../models/Resume");
+const requireAuth = require("../middleware/auth");
 
 const router = express.Router();
 
 // ---------------------------------------------------------------------------
-// NOTE: There is no authentication system merged into this branch yet.
-// Every route below trusts the `:userId` route param to identify whose
-// resume is being accessed. Once the auth branch (login/JWT) is merged,
-// replace `req.params.userId` in each handler with the id of the
-// authenticated user (e.g. `req.user.id`) and drop `userId` from the routes
-// so a user can only ever act on their own resume.
+// All routes below require a valid JWT (see middleware/auth.js). The user is
+// identified by req.user.id, which comes from the verified token - never
+// from anything the client sends directly - so a user can only ever view,
+// upload, replace, or delete their *own* resume.
 // ---------------------------------------------------------------------------
+router.use(requireAuth);
 
 // Keep uploads reasonably small - resumes are text documents, not media,
 // so 5MB is more than enough and keeps the database from bloating.
@@ -42,15 +41,6 @@ const upload = multer({
   },
 });
 
-// Small guard so we fail fast with a clean 400 instead of letting a bad id
-// string blow up further down in a Mongoose query.
-function validateUserId(req, res, next) {
-  if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
-    return res.status(400).json({ error: "Invalid user id" });
-  }
-  next();
-}
-
 // Filenames come straight from the uploader's browser, so we can't fully
 // trust them. Stripping quotes/newlines stops someone from injecting extra
 // headers via a crafted filename when we echo it back in Content-Disposition.
@@ -74,14 +64,14 @@ function toMetadata(resume) {
   };
 }
 
-// GET /api/resumes/:userId -> resume metadata (no binary data)
+// GET /api/resumes -> the logged-in user's resume metadata (no binary data)
 // Used by the frontend to check "does this user already have a resume" and
 // to show details like the filename/size without downloading the whole file.
-router.get("/:userId", validateUserId, async (req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
     // .select("-data") excludes the file bytes at the DB query level, so we
     // never even pull the (potentially large) buffer into memory here.
-    const resume = await Resume.findOne({ user: req.params.userId }).select(
+    const resume = await Resume.findOne({ user: req.user.id }).select(
       "-data"
     );
     if (!resume) {
@@ -93,13 +83,13 @@ router.get("/:userId", validateUserId, async (req, res, next) => {
   }
 });
 
-// GET /api/resumes/:userId/file -> actually stream back the resume bytes.
+// GET /api/resumes/file -> actually stream back the resume bytes.
 // Supports two modes via the response headers:
 //   - default: "inline" so the browser can preview it in a new tab
 //   - ?download=1: "attachment" so the browser triggers a Save As dialog
-router.get("/:userId/file", validateUserId, async (req, res, next) => {
+router.get("/file", async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ user: req.params.userId });
+    const resume = await Resume.findOne({ user: req.user.id });
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
@@ -121,13 +111,12 @@ router.get("/:userId/file", validateUserId, async (req, res, next) => {
   }
 });
 
-// POST /api/resumes/:userId -> upload a brand new resume.
+// POST /api/resumes -> upload a brand new resume for the logged-in user.
 // Deliberately rejects the request (409) if the user already has one on
 // file - we want uploads and replacements to be explicit, separate actions
 // so the frontend can't accidentally clobber an existing resume.
 router.post(
-  "/:userId",
-  validateUserId,
+  "/",
   upload.single("resume"), // parses the multipart form and populates req.file
   async (req, res, next) => {
     try {
@@ -135,7 +124,7 @@ router.post(
         return res.status(400).json({ error: "No file was uploaded" });
       }
 
-      const existing = await Resume.findOne({ user: req.params.userId });
+      const existing = await Resume.findOne({ user: req.user.id });
       if (existing) {
         return res.status(409).json({
           error: "A resume already exists for this user. Use PUT to replace it.",
@@ -143,7 +132,7 @@ router.post(
       }
 
       const resume = await Resume.create({
-        user: req.params.userId,
+        user: req.user.id,
         originalName: sanitizeFilename(req.file.originalname),
         contentType: req.file.mimetype,
         size: req.file.size,
@@ -157,13 +146,12 @@ router.post(
   }
 );
 
-// PUT /api/resumes/:userId -> swap out the user's current resume for a new
+// PUT /api/resumes -> swap out the logged-in user's current resume for a new
 // file. Uses upsert so this also works as a "just create it" call if for
 // some reason no resume existed yet - keeps the client logic simple (it can
 // always PUT when it wants the "final" resume to exist, regardless of state).
 router.put(
-  "/:userId",
-  validateUserId,
+  "/",
   upload.single("resume"),
   async (req, res, next) => {
     try {
@@ -172,9 +160,9 @@ router.put(
       }
 
       const resume = await Resume.findOneAndUpdate(
-        { user: req.params.userId },
+        { user: req.user.id },
         {
-          user: req.params.userId,
+          user: req.user.id,
           originalName: sanitizeFilename(req.file.originalname),
           contentType: req.file.mimetype,
           size: req.file.size,
@@ -190,12 +178,12 @@ router.put(
   }
 );
 
-// DELETE /api/resumes/:userId -> remove the user's resume entirely.
+// DELETE /api/resumes -> remove the logged-in user's resume entirely.
 // Returns 204 (no body) on success, which is the conventional response for
 // a DELETE that doesn't need to hand anything back.
-router.delete("/:userId", validateUserId, async (req, res, next) => {
+router.delete("/", async (req, res, next) => {
   try {
-    const resume = await Resume.findOneAndDelete({ user: req.params.userId });
+    const resume = await Resume.findOneAndDelete({ user: req.user.id });
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }

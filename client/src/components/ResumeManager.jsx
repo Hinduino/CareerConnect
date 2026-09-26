@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   fetchResumeMetadata,
-  getResumeFileUrl,
+  fetchResumeBlobUrl,
   uploadResume,
   replaceResume,
   deleteResume,
 } from '../api/resumeApi';
+import { useAuth } from '../context/AuthContext';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
 const MAX_FILE_SIZE_MB = 5;
@@ -17,31 +18,21 @@ function formatFileSize(bytes) {
 }
 
 function ResumeManager() {
-  // TEMPORARY: there is no auth system merged yet, so we ask for a Mongo
-  // user id directly. Once the auth branch lands, replace this with the
-  // id from the authenticated user's session (e.g. useAuth().user.id) and
-  // remove the id input below.
-  const [userId, setUserId] = useState(
-    () => localStorage.getItem('careerconnect_userId') || ''
-  );
+  const { token, isAuthenticated } = useAuth();
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem('careerconnect_userId', userId);
-  }, [userId]);
-
-  const loadResume = async (id) => {
-    if (!id) {
+  const loadResume = async () => {
+    if (!token) {
       setResume(null);
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const data = await fetchResumeMetadata(id);
+      const data = await fetchResumeMetadata(token);
       setResume(data);
     } catch (err) {
       setError(err.message);
@@ -51,9 +42,9 @@ function ResumeManager() {
   };
 
   useEffect(() => {
-    loadResume(userId);
+    loadResume();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [token]);
 
   const validateFile = (file) => {
     const extension = file.name
@@ -71,7 +62,7 @@ function ResumeManager() {
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = ''; // allow re-selecting the same file later
-    if (!file || !userId) return;
+    if (!file || !token) return;
 
     const validationError = validateFile(file);
     if (validationError) {
@@ -83,8 +74,8 @@ function ResumeManager() {
     setError('');
     try {
       const data = resume
-        ? await replaceResume(userId, file)
-        : await uploadResume(userId, file);
+        ? await replaceResume(token, file)
+        : await uploadResume(token, file);
       setResume(data);
     } catch (err) {
       setError(err.message);
@@ -94,13 +85,13 @@ function ResumeManager() {
   };
 
   const handleDelete = async () => {
-    if (!userId || !resume) return;
+    if (!token || !resume) return;
     if (!window.confirm('Delete your uploaded resume?')) return;
 
     setLoading(true);
     setError('');
     try {
-      await deleteResume(userId);
+      await deleteResume(token);
       setResume(null);
     } catch (err) {
       setError(err.message);
@@ -109,30 +100,45 @@ function ResumeManager() {
     }
   };
 
+  // View/Download can't rely on a plain <a href> since the request needs an
+  // Authorization header. Instead we fetch the file ourselves and open the
+  // resulting blob URL, which behaves the same way from the user's POV.
+  const handleViewOrDownload = async (download) => {
+    if (!token) return;
+    setError('');
+    try {
+      const blobUrl = await fetchResumeBlobUrl(token, { download });
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      if (download) {
+        link.download = resume?.originalName || 'resume';
+      } else {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Give the browser a moment to open/save the file before revoking.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
     <section className="resume-manager-section" id="resume">
       <h3>My Resume</h3>
 
-      <div className="resume-user-id-field">
-        <label htmlFor="resume-user-id">User ID (temporary, until login is added)</label>
-        <input
-          id="resume-user-id"
-          type="text"
-          placeholder="Paste your MongoDB user id"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value.trim())}
-        />
-      </div>
-
-      {!userId && (
-        <p className="resume-hint">Enter your user id to manage your resume.</p>
+      {!isAuthenticated && (
+        <p className="resume-hint">Log in to upload and manage your resume.</p>
       )}
 
       {error && <p className="resume-error">{error}</p>}
 
-      {userId && loading && <p>Loading...</p>}
+      {isAuthenticated && loading && <p>Loading...</p>}
 
-      {userId && !loading && resume && (
+      {isAuthenticated && !loading && resume && (
         <div className="resume-card">
           <div>
             <strong>{resume.originalName}</strong>
@@ -142,14 +148,12 @@ function ResumeManager() {
             </div>
           </div>
           <div className="resume-actions">
-            <a
-              href={getResumeFileUrl(userId)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <button type="button" onClick={() => handleViewOrDownload(false)}>
               View
-            </a>
-            <a href={getResumeFileUrl(userId, { download: true })}>Download</a>
+            </button>
+            <button type="button" onClick={() => handleViewOrDownload(true)}>
+              Download
+            </button>
             <button type="button" onClick={() => fileInputRef.current?.click()}>
               Replace
             </button>
@@ -160,7 +164,7 @@ function ResumeManager() {
         </div>
       )}
 
-      {userId && !loading && !resume && !error && (
+      {isAuthenticated && !loading && !resume && !error && (
         <button type="button" onClick={() => fileInputRef.current?.click()}>
           Upload Resume
         </button>
@@ -178,3 +182,4 @@ function ResumeManager() {
 }
 
 export default ResumeManager;
+
