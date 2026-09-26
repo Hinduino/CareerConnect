@@ -1,6 +1,7 @@
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import MainContent from './components/MainContent'
+import ResumeManager from './components/ResumeManager'
 import Footer from './components/Footer'
 
 function App() {
@@ -14,6 +15,9 @@ function App() {
 
 
       <MainContent />
+
+
+      <ResumeManager />
 
 
       <Footer />
