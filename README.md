@@ -69,4 +69,19 @@ Additional team generated and GenAI features will be documented separately accor
 
 ## Project Setup
 
-Setup instructions will be added once the development technologies and project structure are finalized.
+Clone the GitHub repository and open two separate terminal windows.
+
+**Backend Setup:**  
+In the first terminal, navigate to the server directory and run `npm install` to install the required backend dependencies. Start the API using `node server.js`. The backend runs on port 3000.
+
+**Frontend Setup:**  
+In the second terminal, navigate to the client directory and run `npm install` to install the required frontend dependencies. Start the application using `npm run dev`. The frontend runs on port 5173.
+
+**Database Setup:**  
+The project uses MongoDB with Mongoose. Create a `.env` file and add the MongoDB connection string as `MONGO_URI`. Ensure that your IP address is authorized in MongoDB Atlas before starting the backend.
+
+**Authentication Setup:**  
+Add a secure `JWT_SECRET` to the `.env` file. The application uses bcryptjs for password hashing and JSON Web Tokens (JWT) for user authentication. The `.env` file must not be committed to GitHub.
+
+**Development and Collaboration:**  
+Development is managed using Git and GitHub with separate branches, pull requests, and peer reviews before changes are merged into `main`. Jira is used for task and sprint management, while Microsoft Teams is used for team communication and pull request coordination.
