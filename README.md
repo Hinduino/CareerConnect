@@ -2,9 +2,9 @@
 
 ## Objective
 
-CareerConnect is an online platform designed to help job seekers manage their job search activities. The platform allows users to create profiles, upload and manage resumes, explore job opportunities, monitor submitted applications, and track their application progress.
+CareerConnect is an online platform designed to help job seekers and recruiters manage their job-search activities. Job seekers can explore job opportunities, create profiles, upload and manage resumes, submit applications, and track their application progress. Recruiters can create and manage job postings and connect with potential candidates.
 
-CareerConnect aims to centralize job-search activities and help users stay organized throughout their career development.
+CareerConnect aims to centralize the job-search process and make it easier for job seekers and recruiters to manage their activities in one place.
 
 ## Problem
 
@@ -44,7 +44,28 @@ Additional team generated and GenAI features will be documented separately accor
 
 ## Technologies
 
-To be determined by the team.
+### Frontend
+- React
+- CSS
+- Vite
+
+### Backend
+- Node.js
+- Express.js
+
+### Database
+- MongoDB
+- Mongoose
+
+### Authentication
+- JSON Web Token (JWT)
+- bcryptjs
+
+### Development & Collaboration
+- Git & GitHub
+- Atlassian Jira
+- Visual Studio Code
+- Microsoft Teams
 
 ## Project Setup
 
