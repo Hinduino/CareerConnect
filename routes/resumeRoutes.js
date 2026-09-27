@@ -1,7 +1,13 @@
 const express = require("express");
 const multer = require("multer");
-const Resume = require("../models/Resume");
 const requireAuth = require("../middleware/auth");
+const {
+  findResumeByUser,
+  findResumeMetaByUser,
+  createResume,
+  replaceResume,
+  deleteResumeByUser,
+} = require("../queries/resumeQueries");
 
 const router = express.Router();
 
@@ -65,15 +71,9 @@ function toMetadata(resume) {
 }
 
 // GET /api/resumes -> the logged-in user's resume metadata (no binary data)
-// Used by the frontend to check "does this user already have a resume" and
-// to show details like the filename/size without downloading the whole file.
 router.get("/", async (req, res, next) => {
   try {
-    // .select("-data") excludes the file bytes at the DB query level, so we
-    // never even pull the (potentially large) buffer into memory here.
-    const resume = await Resume.findOne({ user: req.user.id }).select(
-      "-data"
-    );
+    const resume = await findResumeMetaByUser(req.user.id);
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
@@ -84,19 +84,13 @@ router.get("/", async (req, res, next) => {
 });
 
 // GET /api/resumes/file -> actually stream back the resume bytes.
-// Supports two modes via the response headers:
-//   - default: "inline" so the browser can preview it in a new tab
-//   - ?download=1: "attachment" so the browser triggers a Save As dialog
 router.get("/file", async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ user: req.user.id });
+    const resume = await findResumeByUser(req.user.id);
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
 
-    // encodeURIComponent handles spaces/unicode in filenames safely inside
-    // the header value; the filename*=UTF-8'' form is the standard fallback
-    // for browsers that need explicit UTF-8 filenames (RFC 5987).
     const safeName = encodeURIComponent(sanitizeFilename(resume.originalName));
     const disposition = req.query.download ? "attachment" : "inline";
 
@@ -112,26 +106,23 @@ router.get("/file", async (req, res, next) => {
 });
 
 // POST /api/resumes -> upload a brand new resume for the logged-in user.
-// Deliberately rejects the request (409) if the user already has one on
-// file - we want uploads and replacements to be explicit, separate actions
-// so the frontend can't accidentally clobber an existing resume.
 router.post(
   "/",
-  upload.single("resume"), // parses the multipart form and populates req.file
+  upload.single("resume"),
   async (req, res, next) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file was uploaded" });
       }
 
-      const existing = await Resume.findOne({ user: req.user.id });
+      const existing = await findResumeByUser(req.user.id);
       if (existing) {
         return res.status(409).json({
           error: "A resume already exists for this user. Use PUT to replace it.",
         });
       }
 
-      const resume = await Resume.create({
+      const resume = await createResume({
         user: req.user.id,
         originalName: sanitizeFilename(req.file.originalname),
         contentType: req.file.mimetype,
@@ -146,10 +137,7 @@ router.post(
   }
 );
 
-// PUT /api/resumes -> swap out the logged-in user's current resume for a new
-// file. Uses upsert so this also works as a "just create it" call if for
-// some reason no resume existed yet - keeps the client logic simple (it can
-// always PUT when it wants the "final" resume to exist, regardless of state).
+// PUT /api/resumes -> swap out the logged-in user's current resume for a new file.
 router.put(
   "/",
   upload.single("resume"),
@@ -159,17 +147,12 @@ router.put(
         return res.status(400).json({ error: "No file was uploaded" });
       }
 
-      const resume = await Resume.findOneAndUpdate(
-        { user: req.user.id },
-        {
-          user: req.user.id,
-          originalName: sanitizeFilename(req.file.originalname),
-          contentType: req.file.mimetype,
-          size: req.file.size,
-          data: req.file.buffer,
-        },
-        { new: true, upsert: true, runValidators: true }
-      );
+      const resume = await replaceResume(req.user.id, {
+        originalName: sanitizeFilename(req.file.originalname),
+        contentType: req.file.mimetype,
+        size: req.file.size,
+        data: req.file.buffer,
+      });
 
       res.status(200).json(toMetadata(resume));
     } catch (err) {
@@ -179,11 +162,9 @@ router.put(
 );
 
 // DELETE /api/resumes -> remove the logged-in user's resume entirely.
-// Returns 204 (no body) on success, which is the conventional response for
-// a DELETE that doesn't need to hand anything back.
 router.delete("/", async (req, res, next) => {
   try {
-    const resume = await Resume.findOneAndDelete({ user: req.user.id });
+    const resume = await deleteResumeByUser(req.user.id);
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
