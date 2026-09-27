@@ -1,18 +1,18 @@
 require("dotenv").config();
 const connectDB = require("./config/db");
-const User = require("./models/User");
+const { createUser, findUserByEmail } = require("./queries/userQueries");
 
 const run = async () => {
   await connectDB();
 
-  const testUser = await User.create({
+  const newUser = await createUser({
     email: `test${Date.now()}@example.com`,
     password: "hashed_placeholder",
   });
-  console.log("Created:", testUser);
+  console.log("Created via query:", newUser);
 
-  const found = await User.findById(testUser._id);
-  console.log("Found:", found);
+  const found = await findUserByEmail(newUser.email);
+  console.log("Found via query:", found);
 
   process.exit(0);
 };
