@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "test": "jest --passWithNoTests"
+    "test:unit": "jest --passWithNoTests"
   },
   "dependencies": {
     "react": "^18.3.1",

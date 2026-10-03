@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "lint": "eslint src/",
-    "test": "jest --runInBand --passWithNoTests"
+    "test:unit": "jest --runInBand --passWithNoTests"
   },
   "repository": {
     "type": "git",
