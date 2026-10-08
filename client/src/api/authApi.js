@@ -33,3 +33,30 @@ export async function loginUser(email, password) {
   }
   return data;
 }
+
+export async function updateProfile(token, profile) {
+  const response = await fetch(`${API_BASE}/profile`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(profile),
+  });
+  const data = await parseJsonSafely(response);
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to save profile");
+  }
+  return data;
+}
+
+export async function fetchProfile(token) {
+  const response = await fetch(`${API_BASE}/profile`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await parseJsonSafely(response);
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to load profile");
+  }
+  return data;
+}

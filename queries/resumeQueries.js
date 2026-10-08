@@ -5,8 +5,7 @@ const User = require("../models/User");
 
 // Metadata fields only. Listed one by one (rather than selecting "resume")
 // so the file bytes in resume.data are never loaded by accident.
-const RESUME_META =
-  "resume.originalName resume.contentType resume.size resume.uploadedAt resume.updatedAt";
+const RESUME_META = "resume.originalName resume.contentType resume.size";
 
 // A user "has a resume" when the embedded file bytes exist.
 const HAS_RESUME = { "resume.data": { $exists: true } };
@@ -35,7 +34,6 @@ async function findResumeByUser(userId) {
 // who has no resume yet, so two simultaneous uploads cannot overwrite each
 // other. Returns null if the user already has one (or does not exist).
 async function createResume(userId, file) {
-  const now = new Date();
   const user = await User.findOneAndUpdate(
     { _id: userId, ...HAS_NO_RESUME },
     {
@@ -45,8 +43,6 @@ async function createResume(userId, file) {
           contentType: file.contentType,
           size: file.size,
           data: file.data,
-          uploadedAt: now,
-          updatedAt: now,
         },
       },
     },
@@ -55,9 +51,8 @@ async function createResume(userId, file) {
   return resumeOf(user);
 }
 
-// Swaps the file in place and keeps the original uploadedAt. If the user
-// has no resume yet, this falls back to creating one. Returns null only if
-// the user does not exist.
+// Swaps the file in place. If the user has no resume yet, this falls back
+// to creating one. Returns null only if the user does not exist.
 async function replaceResume(userId, file) {
   const user = await User.findOneAndUpdate(
     { _id: userId, ...HAS_RESUME },
@@ -67,7 +62,6 @@ async function replaceResume(userId, file) {
         "resume.contentType": file.contentType,
         "resume.size": file.size,
         "resume.data": file.data,
-        "resume.updatedAt": new Date(),
       },
     },
     { new: true, runValidators: true }

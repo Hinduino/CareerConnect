@@ -7,6 +7,7 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
+const requireAuth = require('./middleware/auth');
 
 if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
     console.error('MONGO_URI or JWT_SECRET is missing from .env');
@@ -28,6 +29,18 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/resumes', resumeRoutes);
+
+// The profile fields that are safe to send to / accept from the client
+function toProfile(user) {
+    return {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        location: user.location,
+        bio: user.bio
+    };
+}
 
 // Sprint 1 Feature: User Registration
 app.post('/api/register', async (req, res) => {
@@ -57,10 +70,7 @@ app.post('/api/register', async (req, res) => {
     // Return the created user's safe information
     res.status(201).json({
         message: 'User registered successfully!',
-        user: {
-            id: newUser._id,
-            email: newUser.email
-        }
+        user: toProfile(newUser)
     });
 }); 
 
@@ -101,11 +111,51 @@ app.post('/api/login', async (req, res) => {
     res.status(200).json({
         message: 'Login successful!',
         token,
-        user: {
-            id: user._id,
-            email: user.email
-        }
+        user: toProfile(user)
     });
+});
+
+// Profile management: view and update the logged-in user's own profile
+app.get('/api/profile', requireAuth, async (req, res) => {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user: toProfile(user) });
+});
+
+app.put('/api/profile', requireAuth, async (req, res) => {
+    const { name, email, role, location, bio } = req.body;
+
+    if (typeof email !== 'string' || !email.trim()) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+    if (!['job_seeker', 'recruiter'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const trimmedEmail = email.trim();
+    const emailTaken = await User.findOne({ email: trimmedEmail, _id: { $ne: req.user.id } });
+    if (emailTaken) {
+        return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user.id,
+        {
+            name: String(name ?? ''),
+            email: trimmedEmail,
+            role,
+            location: String(location ?? ''),
+            bio: String(bio ?? '')
+        },
+        { new: true, runValidators: true }
+    );
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'Profile saved successfully!', user: toProfile(user) });
 });
 
 
