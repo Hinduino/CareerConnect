@@ -16,11 +16,15 @@ const router = express.Router();
 // identified by req.user.id, which comes from the verified token - never
 // from anything the client sends directly - so a user can only ever view,
 // upload, replace, or delete their *own* resume.
+//
+// The resume is stored inside that user's document (the embedded `resume`
+// field on User), so every route here reads or updates the user document.
 // ---------------------------------------------------------------------------
 router.use(requireAuth);
 
-// Keep uploads reasonably small - resumes are text documents, not media,
-// so 5MB is more than enough and keeps the database from bloating.
+// Keep uploads reasonably small - resumes are text documents, not media.
+// This matters more now that the file lives inside the user document:
+// MongoDB caps a single document at 16MB, and 5MB stays well under that.
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 // Only accept the file types a resume would realistically be in. This is
@@ -54,18 +58,27 @@ function sanitizeFilename(name) {
   return name.replace(/[\r\n"]/g, "").trim() || "resume";
 }
 
+// Turns the multer file into the shape the query functions expect.
+function toResumeFields(file) {
+  return {
+    originalName: sanitizeFilename(file.originalname),
+    contentType: file.mimetype,
+    size: file.size,
+    data: file.buffer,
+  };
+}
+
 // Shapes what we send back to the client for metadata-only responses.
 // Deliberately leaves out `data` (the raw file bytes) since that's only
-// needed by the /file route - no point shipping megabytes of binary data
-// every time someone just wants to know if a resume exists.
-function toMetadata(resume) {
+// needed by the /file route. There is no resume `id` anymore: an embedded
+// resume is identified by the user it belongs to.
+function toMetadata(resume, userId) {
   return {
-    id: resume._id,
-    user: resume.user,
+    user: userId,
     originalName: resume.originalName,
     contentType: resume.contentType,
     size: resume.size,
-    uploadedAt: resume.createdAt,
+    uploadedAt: resume.uploadedAt,
     updatedAt: resume.updatedAt,
   };
 }
@@ -77,17 +90,17 @@ router.get("/", async (req, res, next) => {
     if (!resume) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
-    res.json(toMetadata(resume));
+    res.json(toMetadata(resume, req.user.id));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/resumes/file -> actually stream back the resume bytes.
+// GET /api/resumes/file -> actually send back the resume bytes.
 router.get("/file", async (req, res, next) => {
   try {
     const resume = await findResumeByUser(req.user.id);
-    if (!resume) {
+    if (!resume || !resume.data) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
 
@@ -106,66 +119,50 @@ router.get("/file", async (req, res, next) => {
 });
 
 // POST /api/resumes -> upload a brand new resume for the logged-in user.
-router.post(
-  "/",
-  upload.single("resume"),
-  async (req, res, next) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file was uploaded" });
-      }
-
-      const existing = await findResumeByUser(req.user.id);
-      if (existing) {
-        return res.status(409).json({
-          error: "A resume already exists for this user. Use PUT to replace it.",
-        });
-      }
-
-      const resume = await createResume({
-        user: req.user.id,
-        originalName: sanitizeFilename(req.file.originalname),
-        contentType: req.file.mimetype,
-        size: req.file.size,
-        data: req.file.buffer,
-      });
-
-      res.status(201).json(toMetadata(resume));
-    } catch (err) {
-      next(err);
+router.post("/", upload.single("resume"), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file was uploaded" });
     }
+
+    // createResume only writes when the user has no resume yet, so a null
+    // result means one is already there.
+    const resume = await createResume(req.user.id, toResumeFields(req.file));
+    if (!resume) {
+      return res.status(409).json({
+        error: "A resume already exists for this user. Use PUT to replace it.",
+      });
+    }
+
+    res.status(201).json(toMetadata(resume, req.user.id));
+  } catch (err) {
+    next(err);
   }
-);
+});
 
 // PUT /api/resumes -> swap out the logged-in user's current resume for a new file.
-router.put(
-  "/",
-  upload.single("resume"),
-  async (req, res, next) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file was uploaded" });
-      }
-
-      const resume = await replaceResume(req.user.id, {
-        originalName: sanitizeFilename(req.file.originalname),
-        contentType: req.file.mimetype,
-        size: req.file.size,
-        data: req.file.buffer,
-      });
-
-      res.status(200).json(toMetadata(resume));
-    } catch (err) {
-      next(err);
+router.put("/", upload.single("resume"), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file was uploaded" });
     }
+
+    const resume = await replaceResume(req.user.id, toResumeFields(req.file));
+    if (!resume) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json(toMetadata(resume, req.user.id));
+  } catch (err) {
+    next(err);
   }
-);
+});
 
 // DELETE /api/resumes -> remove the logged-in user's resume entirely.
 router.delete("/", async (req, res, next) => {
   try {
-    const resume = await deleteResumeByUser(req.user.id);
-    if (!resume) {
+    const deleted = await deleteResumeByUser(req.user.id);
+    if (!deleted) {
       return res.status(404).json({ error: "No resume found for this user" });
     }
     res.status(204).send();
