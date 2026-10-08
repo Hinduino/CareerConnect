@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "lint": "eslint src/",
-    "test:unit": "jest --runInBand --passWithNoTests"
+    "test:unit": "jest --runInBand --passWithNoTests",
+    "test:integration": "jest --config=jest.config.json --runInBand --detectOpenHandles --forceExit"
   },
   "repository": {
     "type": "git",
