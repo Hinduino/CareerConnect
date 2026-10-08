@@ -15,24 +15,22 @@ const resumeSchema = new mongoose.Schema(
     contentType: { type: String, required: true },
     size: { type: Number, required: true },
     data: { type: Buffer, required: true, select: false },
-    uploadedAt: { type: Date, required: true }, // first upload
-    updatedAt: { type: Date, required: true }, // last replace
   },
   { _id: false }
 );
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, default: "Unnamed User" },
-    email: { type: String, required: true, unique: true },
+    name: { type: String, default: "", trim: true },
+    email: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: ["job_seeker", "recruiter"], default: "job_seeker" },
-    location: { type: String },
+    location: { type: String, default: "", trim: true },
+    bio: { type: String, default: "", trim: true },
 
     // Absent (not an empty object) until the user uploads a resume.
     resume: { type: resumeSchema, default: undefined },
-  },
-  { timestamps: true }
+  }
 );
 
 module.exports = mongoose.model("User", userSchema);

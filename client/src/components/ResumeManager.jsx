@@ -143,8 +143,7 @@ function ResumeManager() {
           <div>
             <strong>{resume.originalName}</strong>
             <div className="resume-meta">
-              {formatFileSize(resume.size)} &middot; uploaded{' '}
-              {new Date(resume.uploadedAt).toLocaleDateString()}
+              {formatFileSize(resume.size)}
             </div>
           </div>
           <div className="resume-actions">
