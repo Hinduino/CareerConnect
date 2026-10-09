@@ -7,7 +7,7 @@
     "start": "node server.js",
     "lint": "eslint src/",
     "test:unit": "jest --selectProjects unit --passWithNoTests",
-    "test:integration": "jest --selectProjects integration --passWithNoTests",
+    "test:integration": "jest --selectProjects integration --passWithNoTests --detectOpenHandles",
     "test:all": "jest"
   },
   "repository": {
