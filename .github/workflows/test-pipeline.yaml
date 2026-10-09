@@ -43,16 +43,23 @@ jobs:
         run: npm run lint
 
       # Stage 2: Unit Tests
-      - name: Run Stage 2 (Unit Tests)
+      - name: Run Stage 2 (Unit Tests) For Client
+        working-directory: ./client
+        run: npm run test:unit
+
+      - name: Run Stage 2 (Unit Tests) For Server
+        working-directory: ./server
         run: npm run test:unit
 
       # Stage 3: Integration/API Testing
-      - name: Run Stage 3 (Integration/API Tests)
+      - name: Run Stage 3 (Integration/API Tests) For Server
+        working-directory: ./server
         run: npm run test:integration
 
-      # Stage 4: E2E Browser Testing
-      - name: Install Playwright Browsers (For Stage 4)
-        run: npx playwright install --with-deps
+      # Stage 4: E2E Browser Testing (To be implemented)
 
-      - name: Run Stage 4 (End-to-End Tests)
-        run: npm run test:e2e
+      # - name: Install Playwright Browsers (For Stage 4)
+      #   run: npx playwright install --with-deps
+
+      # - name: Run Stage 4 (End-to-End Tests)
+      #   run: npm run test:e2e
