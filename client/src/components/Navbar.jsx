@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function Navbar() {
+function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick }) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSignUp = async () => {
     try {
-      const data = await register(email, password);
-      alert(data.message); // Should pop up "User registered successfully!"
+      await register(email, password);
+      // Sign in right away so the new user can fill in their profile
+      await login(email, password);
+      setEmail('');
       setPassword('');
+      onSignUpSuccess();
     } catch (err) {
       alert(err.message);
     }
@@ -18,30 +21,39 @@ function Navbar() {
 
   const handleLogIn = async () => {
     try {
-      await login(email, password);
+      const data = await login(email, password);
       setEmail('');
       setPassword('');
+      onLoginSuccess(data.user);
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    onLogout();
   };
 
   return (
     <header className="navbar-section">
       <nav className="navbar-container">
         <div className="navbar-brand">
-          <h2>CareerConnect</h2>
+          <button type="button" className="navbar-home" onClick={onHomeClick}>
+            CareerConnect
+          </button>
         </div>
 
         <ul className="navbar-links">
-          <li><a href="#browse-jobs">Browse Jobs</a></li>
-          <li><a href="#features">Features</a></li>
+          <li><button type="button" className="btn-secondary">Browse Jobs</button></li>
+          <li><button type="button" className="btn-secondary">Features</button></li>
         </ul>
 
         {isAuthenticated ? (
           <div className="navbar-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <span>{user?.email}</span>
-            <button type="button" onClick={logout}>Log Out</button>
+            <button type="button" className="btn-secondary" onClick={onProfileClick}>Profile</button>
+            <button type="button" className="btn-primary" onClick={handleLogout}>Log Out</button>
           </div>
         ) : (
           <div className="navbar-actions" style={{ display: 'flex', gap: '10px' }}>
@@ -67,4 +79,3 @@ function Navbar() {
 }
 
 export default Navbar;
-

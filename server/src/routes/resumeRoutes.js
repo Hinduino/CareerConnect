@@ -78,8 +78,6 @@ function toMetadata(resume, userId) {
     originalName: resume.originalName,
     contentType: resume.contentType,
     size: resume.size,
-    uploadedAt: resume.uploadedAt,
-    updatedAt: resume.updatedAt,
   };
 }
 
