@@ -5,14 +5,22 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState('login');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleSignUp = async () => {
+    if (password !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+
     try {
-      await register(email, password);
+      await register(email, password, confirmPassword);
       // Sign in right away so the new user can fill in their profile
       await login(email, password);
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       onSignUpSuccess();
     } catch (err) {
       alert(err.message);
@@ -69,8 +77,34 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <button type="button" onClick={handleLogIn}>Log In</button>
-            <button type="button" onClick={handleSignUp}>Sign Up</button>
+            {authMode === 'signup' && (
+              <input
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            )}
+
+            {authMode === 'login' ? (
+              <>
+                <button type="button" onClick={handleLogIn}>
+                  Log In
+                </button>
+                <button type="button" onClick={() => setAuthMode('signup')}>
+                  Switch to Sign Up
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={handleSignUp}>
+                  Sign Up
+                </button>
+                <button type="button" onClick={() => setAuthMode('login')}>
+                  Switch to Log In
+                </button>
+              </>
+            )}
           </div>
         )}
       </nav>
