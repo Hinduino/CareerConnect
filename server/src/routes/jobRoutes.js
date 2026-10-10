@@ -6,7 +6,7 @@ const JobPosting = require('../models/JobPosting'); // Uses Nazila's database sc
 router.get('/', async (req, res) => {
     try {
         const { keyword, location, category } = req.query;
-        let query = {};
+        const query = {};
 
         if (keyword) query.title = { $regex: keyword, $options: 'i' };
         if (location) query.location = { $regex: location, $options: 'i' };
