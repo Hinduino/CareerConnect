@@ -19,6 +19,17 @@ const resumeSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Same embedding pattern as the resume above, just for a profile photo.
+const profilePictureSchema = new mongoose.Schema(
+  {
+    originalName: { type: String, required: true },
+    contentType: { type: String, required: true },
+    size: { type: Number, required: true },
+    data: { type: Buffer, required: true, select: false },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, default: "", trim: true },
@@ -30,6 +41,9 @@ const userSchema = new mongoose.Schema(
 
     // Absent (not an empty object) until the user uploads a resume.
     resume: { type: resumeSchema, default: undefined },
+
+    // Absent until the user uploads a profile picture.
+    profilePicture: { type: profilePictureSchema, default: undefined },
   }
 );
 

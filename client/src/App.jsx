@@ -2,7 +2,6 @@ import { useState } from 'react';
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import MainContent from './components/MainContent'
-import ResumeManager from './components/ResumeManager'
 import Footer from './components/Footer'
 import Profile from './components/Profile'
 import ProfileView from './components/ProfileView'
@@ -48,7 +47,6 @@ function App() {
         <>
           <Hero />
           <MainContent />
-          <ResumeManager />
           <Footer />
         </>
       )}

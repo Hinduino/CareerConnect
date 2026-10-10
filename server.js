@@ -4,6 +4,7 @@ const cors = require('cors'); // Import CORS
 const multer = require('multer');
 const connectDB = require('./config/db');
 const resumeRoutes = require('./routes/resumeRoutes');
+const profilePictureRoutes = require('./routes/profilePictureRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
@@ -29,6 +30,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/resumes', resumeRoutes);
+app.use('/api/profile/picture', profilePictureRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
@@ -38,7 +40,8 @@ function toProfile(user) {
         email: user.email,
         role: user.role,
         location: user.location,
-        bio: user.bio
+        bio: user.bio,
+        hasProfilePicture: Boolean(user.profilePicture)
     };
 }
 
@@ -167,7 +170,10 @@ app.use((err, req, res, next) => {
             : err.message;
         return res.status(400).json({ error: message });
     }
-    if (err && err.message && err.message.includes('Only PDF, DOC, and DOCX')) {
+    if (err && err.message && (
+        err.message.includes('Only PDF, DOC, and DOCX')
+        || err.message.includes('images are allowed')
+    )) {
         return res.status(400).json({ error: err.message });
     }
 
