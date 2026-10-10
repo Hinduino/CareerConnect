@@ -1,50 +1,55 @@
 import { useState, useEffect } from 'react';
 
+async function requestJobs(filters) {
+    try {
+        const queryParams = new URLSearchParams(filters).toString();
+        const response = await fetch(`http://localhost:3000/api/jobs?${queryParams}`);
+        const data = await response.json();
+        return response.ok ? data : null;
+    } catch (error) {
+        console.error('Failed to fetch jobs:', error);
+        return null;
+    }
+}
+
 function JobList({ onViewDetails }) {
     const [jobs, setJobs] = useState([]);
     const [keyword, setKeyword] = useState('');
     const [location, setLocation] = useState('');
     const [category, setCategory] = useState('');
 
-    const fetchJobs = async () => {
-        try {
-            const queryParams = new URLSearchParams({ keyword, location, category }).toString();
-            const response = await fetch(`http://localhost:3000/api/jobs?${queryParams}`);
-            const data = await response.json();
-            
-            if (response.ok) {
-                setJobs(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch jobs:', error);
-        }
-    };
-
     useEffect(() => {
-        fetchJobs();
+        let cancelled = false;
+        requestJobs({ keyword: '', location: '', category: '' }).then((data) => {
+            if (!cancelled && data) setJobs(data);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
-    const handleFilterSubmit = (e) => {
+    const handleFilterSubmit = async (e) => {
         e.preventDefault();
-        fetchJobs();
+        const data = await requestJobs({ keyword, location, category });
+        if (data) setJobs(data);
     };
 
     return (
         <div className="job-listing-container" style={{ padding: '20px' }}>
             <h2>Find Your Next Opportunity</h2>
-            
+
             <form onSubmit={handleFilterSubmit} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                <input 
-                    type="text" 
-                    placeholder="Keyword" 
-                    value={keyword} 
-                    onChange={(e) => setKeyword(e.target.value)} 
+                <input
+                    type="text"
+                    placeholder="Keyword"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
                 />
-                <input 
-                    type="text" 
-                    placeholder="Location" 
-                    value={location} 
-                    onChange={(e) => setLocation(e.target.value)} 
+                <input
+                    type="text"
+                    placeholder="Location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
                 />
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
                     <option value="">All Categories</option>

@@ -33,7 +33,7 @@ function App() {
         onLogout={() => setCurrentView('home')}
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
-        onJobsClick={() => setCurrentView('jobs')} 
+        onJobsClick={() => setCurrentView('jobs')}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -49,16 +49,16 @@ function App() {
           onBack={() => setCurrentView('profile')}
         />
       ) : currentView === 'jobs' ? (
-        <JobList 
+        <JobList
           onViewDetails={(id) => {
             setSelectedJobId(id);
             setCurrentView('job-detail');
-          }} 
+          }}
         />
       ) : currentView === 'job-detail' ? (
-        <JobDetail 
-          jobId={selectedJobId} 
-          onBack={() => setCurrentView('jobs')} 
+        <JobDetail
+          jobId={selectedJobId}
+          onBack={() => setCurrentView('jobs')}
         />
       ) : (
         <>
@@ -67,7 +67,7 @@ function App() {
           <ResumeManager />
         </>
       )}
-      
+
       <Footer />
     </div>
   )

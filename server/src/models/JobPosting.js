@@ -9,5 +9,4 @@ const jobPostingSchema = new mongoose.Schema({
     requirements: { type: String, required: true }
 }, { timestamps: true });
 
-// This export turns the schema into a fully functional Mongoose model with .find()
 module.exports = mongoose.model('JobPosting', jobPostingSchema);

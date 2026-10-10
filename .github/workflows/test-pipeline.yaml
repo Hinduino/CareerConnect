@@ -1,0 +1,74 @@
+name: Web App Testing Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-suite:
+    runs-on: ubuntu-latest
+
+
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout Repository code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+
+      # Stage 1: Dependency Installation and Linting
+      # --- CLIENT PIPELINE ---
+      - name: Install Client Dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: Run Client Lint
+        working-directory: ./client
+        run: npm run lint
+
+      # --- SERVER PIPELINE ---
+      - name: Install Server Dependencies
+        working-directory: ./server
+        run: npm ci
+
+      - name: Run Server Lint
+        working-directory: ./server
+        run: npm run lint
+
+      # Stage 2: Unit Tests
+      - name: Run Stage 2 (Unit Tests) For Client
+        working-directory: ./client
+        run: npm run test:unit
+
+      - name: Run Stage 2 (Unit Tests) For Server
+        working-directory: ./server
+        run: npm run test:unit
+
+      # Stage 3: Integration/API Testing
+      - name: Run Stage 3 (Integration/API Tests) For Server
+        working-directory: ./server
+        run: npm run test:integration
+        env:
+          MONGO_URI: mongodb://localhost:27017/careerconnect
+
+      # Stage 4: E2E Browser Testing (To be implemented)
+
+      # - name: Install Playwright Browsers (For Stage 4)
+      #   run: npx playwright install --with-deps
+
+      # - name: Run Stage 4 (End-to-End Tests)
+      #   run: npm run test:e2e
