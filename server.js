@@ -44,15 +44,85 @@ function toProfile(user) {
 
 // Sprint 1 Feature: User Registration
 app.post('/api/register', async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, confirmPassword } = req.body;
 
-    // Check that email and password were provided
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
+    // Check that email and password are valid inputs
+    if (
+        typeof email !== 'string' ||
+        !email.trim() ||
+        typeof password !== 'string' ||
+        !password
+    ) {
+        return res.status(400).json({
+            error: 'Email and password are required'
+        });
+    }
+
+    // Normalize the email
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Validate the email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({
+            error: 'Please enter a valid email address'
+        });
+    }
+
+
+    // Validate password requirements
+    if (password.length < 8) {
+        return res.status(400).json({
+            error: 'Password must contain at least 8 characters'
+        });
+    }
+
+    if (!/[A-Z]/.test(password)) {
+        return res.status(400).json({
+            error: 'Password must contain at least one uppercase letter'
+        });
+    }
+
+    if (!/[a-z]/.test(password)) {
+        return res.status(400).json({
+            error: 'Password must contain at least one lowercase letter'
+        });
+    }
+
+    if (!/[0-9]/.test(password)) {
+        return res.status(400).json({
+            error: 'Password must contain at least one number'
+        });
+    }
+
+    if (!/[^A-Za-z0-9\s]/.test(password)) {
+        return res.status(400).json({
+            error: 'Password must contain at least one special character'
+        });
+    }
+
+    if (/\s/.test(password)) {
+        return res.status(400).json({
+            error: 'Password must not contain spaces'
+        });
+    }
+
+    // Validate password confirmation
+    if (typeof confirmPassword !== 'string' || !confirmPassword) {
+        return res.status(400).json({
+            error: 'Password confirmation is required'
+        });
+    }
+
+    if (password !== confirmPassword) {
+        return res.status(400).json({
+            error: 'Passwords do not match'
+        });
     }
 
     // Check whether the email is already registered
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
         return res.status(409).json({ error: 'Email already registered' });
@@ -63,7 +133,7 @@ app.post('/api/register', async (req, res) => {
 
     // Save the new user to MongoDB
     const newUser = await User.create({
-        email,
+        email: normalizedEmail,
         password: hashedPassword
     });
 
@@ -72,7 +142,7 @@ app.post('/api/register', async (req, res) => {
         message: 'User registered successfully!',
         user: toProfile(newUser)
     });
-}); 
+});
 
 
 // Sprint 1 Feature: User Login
@@ -80,12 +150,20 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
     // Check that email and password were provided
-    if (!email || !password) {
+    if (
+        typeof email !== 'string' ||
+        !email.trim() ||
+        typeof password !== 'string' ||
+        !password
+    ) {
         return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    // Normalize the email before searching
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Find the user in MongoDB
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
 
     // Reject login if the account does not exist
     if (!user) {
