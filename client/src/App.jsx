@@ -7,10 +7,13 @@ import Footer from './components/Footer'
 import Profile from './components/Profile'
 import ProfileView from './components/ProfileView'
 import { useAuth } from './context/AuthContext'
+import JobList from './components/JobList'
+import JobDetail from './components/JobDetail'
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
   const [currentView, setCurrentView] = useState('home');
+  const [selectedJobId, setSelectedJobId] = useState(null);
 
   const handleSaveProfile = async (profile) => {
     try {
@@ -30,6 +33,7 @@ function App() {
         onLogout={() => setCurrentView('home')}
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
+        onJobsClick={() => setCurrentView('jobs')} 
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -44,14 +48,27 @@ function App() {
           onSave={handleSaveProfile}
           onBack={() => setCurrentView('profile')}
         />
+      ) : currentView === 'jobs' ? (
+        <JobList 
+          onViewDetails={(id) => {
+            setSelectedJobId(id);
+            setCurrentView('job-detail');
+          }} 
+        />
+      ) : currentView === 'job-detail' ? (
+        <JobDetail 
+          jobId={selectedJobId} 
+          onBack={() => setCurrentView('jobs')} 
+        />
       ) : (
         <>
           <Hero />
           <MainContent />
           <ResumeManager />
-          <Footer />
         </>
       )}
+      
+      <Footer />
     </div>
   )
 }

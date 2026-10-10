@@ -4,6 +4,7 @@ const cors = require('cors'); // Import CORS
 const multer = require('multer');
 const connectDB = require('./config/db');
 const resumeRoutes = require('./routes/resumeRoutes');
+const jobRoutes = require('./routes/jobRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
@@ -29,6 +30,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/resumes', resumeRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
