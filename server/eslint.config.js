@@ -33,4 +33,12 @@ export default [
       "no-process-exit": "off"        // Off to allow process.exit() if you need to shut down the server safely
     },
   },
+  {
+    files: ["**/*.test.js"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+      },
+    },
+  },
 ];

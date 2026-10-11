@@ -114,6 +114,41 @@ body {
   align-items: center;
 }
 
+/* Resume preview: an embedded view of the uploaded file, shown right below
+   the resume-card actions whenever a resume is on file. */
+.resume-preview {
+  max-width: 600px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.resume-preview-frame {
+  width: 100%;
+  height: 520px;
+  border: none;
+  display: block;
+}
+
+.resume-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background-color: #fafafa;
+}
+
+.resume-preview-icon {
+  font-size: 2.5rem;
+}
+
+.resume-preview-name {
+  font-weight: 600;
+  margin: 0;
+}
+
 /* Buttons */
 .btn-primary {
   background-color: #111;
@@ -129,6 +164,34 @@ body {
 
 .btn-primary:hover {
   background-color: #333;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-small {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+}
+
+.btn-danger {
+  background-color: transparent;
+  color: #b00020;
+  border: 1.5px solid #b00020;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-danger:hover {
+  background-color: #b00020;
+  color: white;
 }
 
 .btn-secondary {
@@ -173,6 +236,71 @@ body {
 .profile-header h1 {
   margin: 0;
   font-size: 1.6rem;
+}
+
+/* Profile identity: picture, name, and bio shown together at the top of
+   the profile page. */
+.profile-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.profile-picture-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.profile-picture-frame {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-picture-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-picture-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #111;
+  color: white;
+  font-size: 2.2rem;
+  font-weight: 600;
+}
+
+.profile-picture-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.profile-bio {
+  margin: 0;
+  max-width: 420px;
+  color: #555;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .profile-form {

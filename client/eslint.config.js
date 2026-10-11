@@ -55,4 +55,14 @@ export default [
       ],
     },
   },
+
+  {
+    files: ["**/*.test.{js,jsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        ...globals.node,
+      },
+    },
+  },
 ];
