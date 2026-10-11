@@ -205,7 +205,7 @@ function ResumeManager() {
                 <span className="resume-preview-icon" aria-hidden="true">📄</span>
                 <p className="resume-preview-name">{resume.originalName}</p>
                 <p className="resume-meta">
-                  Preview isn't available for this file type. Use View or Download above.
+                  Preview isn&apos;t available for this file type. Use View or Download above.
                 </p>
               </div>
             )}
@@ -231,4 +231,3 @@ function ResumeManager() {
 }
 
 export default ResumeManager;
-
