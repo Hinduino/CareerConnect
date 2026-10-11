@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick }) {
+function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick }) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,7 +45,7 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
         </div>
 
         <ul className="navbar-links">
-          <li><button type="button" className="btn-secondary">Browse Jobs</button></li>
+          <li><button type="button" className="btn-secondary"onClick={onJobsClick}>Browse Jobs</button></li>
           <li><button type="button" className="btn-secondary">Features</button></li>
         </ul>
 

@@ -5,6 +5,7 @@ const multer = require('multer');
 const connectDB = require('./config/db');
 const resumeRoutes = require('./routes/resumeRoutes');
 const profilePictureRoutes = require('./routes/profilePictureRoutes');
+const jobRoutes = require('./routes/jobRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
@@ -26,11 +27,12 @@ app.use(express.json()); // Parse incoming JSON data
 
 // Base health check
 app.get('/', (req, res) => {
-    res.status(200).send('CareerConnect Server is running!');
+    res.status(200).json({ message: 'CareerConnect Server is running!' });
 });
 
 app.use('/api/resumes', resumeRoutes);
 app.use('/api/profile/picture', profilePictureRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
@@ -181,6 +183,10 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Server listening on http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app; // Export the app for testing purposes

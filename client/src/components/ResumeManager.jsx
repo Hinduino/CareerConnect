@@ -25,7 +25,10 @@ function ResumeManager() {
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  const loadResume = async () => {
+  
+
+  useEffect(() => {
+    const loadResume = async () => {
     if (!token) {
       setResume(null);
       return;
@@ -41,10 +44,7 @@ function ResumeManager() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
     loadResume();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Whenever we have a resume on file, fetch its bytes once and keep a blob
