@@ -20,11 +20,15 @@ function formatFileSize(bytes) {
 function ResumeManager() {
   const { token, isAuthenticated } = useAuth();
   const [resume, setResume] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  const loadResume = async () => {
+  
+
+  useEffect(() => {
+    const loadResume = async () => {
     if (!token) {
       setResume(null);
       return;
@@ -40,11 +44,37 @@ function ResumeManager() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
     loadResume();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Whenever we have a resume on file, fetch its bytes once and keep a blob
+  // URL around so it can be rendered inline (an <iframe> for PDFs) instead
+  // of only being reachable through the View/Download buttons.
+  useEffect(() => {
+    let activeUrl = null;
+    let cancelled = false;
+
+    const loadPreview = async () => {
+      if (!token || !resume) {
+        setPreviewUrl(null);
+        return;
+      }
+      try {
+        const url = await fetchResumeBlobUrl(token, { download: false });
+        activeUrl = url;
+        if (!cancelled) setPreviewUrl(url);
+      } catch {
+        if (!cancelled) setPreviewUrl(null);
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+      if (activeUrl) URL.revokeObjectURL(activeUrl);
+    };
+  }, [token, resume]);
 
   const validateFile = (file) => {
     const extension = file.name
@@ -139,32 +169,52 @@ function ResumeManager() {
       {isAuthenticated && loading && <p>Loading...</p>}
 
       {isAuthenticated && !loading && resume && (
-        <div className="resume-card">
-          <div>
-            <strong>{resume.originalName}</strong>
-            <div className="resume-meta">
-              {formatFileSize(resume.size)}
+        <>
+          <div className="resume-card">
+            <div>
+              <strong>{resume.originalName}</strong>
+              <div className="resume-meta">
+                {formatFileSize(resume.size)}
+              </div>
+            </div>
+            <div className="resume-actions">
+              <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(false)}>
+                View
+              </button>
+              <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(true)}>
+                Download
+              </button>
+              <button type="button" className="btn-secondary btn-small" onClick={() => fileInputRef.current?.click()}>
+                Replace
+              </button>
+              <button type="button" className="btn-danger btn-small" onClick={handleDelete}>
+                Delete
+              </button>
             </div>
           </div>
-          <div className="resume-actions">
-            <button type="button" onClick={() => handleViewOrDownload(false)}>
-              View
-            </button>
-            <button type="button" onClick={() => handleViewOrDownload(true)}>
-              Download
-            </button>
-            <button type="button" onClick={() => fileInputRef.current?.click()}>
-              Replace
-            </button>
-            <button type="button" onClick={handleDelete}>
-              Delete
-            </button>
+
+          <div className="resume-preview">
+            {resume.contentType === 'application/pdf' && previewUrl ? (
+              <iframe
+                src={previewUrl}
+                title={`Preview of ${resume.originalName}`}
+                className="resume-preview-frame"
+              />
+            ) : (
+              <div className="resume-preview-placeholder">
+                <span className="resume-preview-icon" aria-hidden="true">📄</span>
+                <p className="resume-preview-name">{resume.originalName}</p>
+                <p className="resume-meta">
+                  Preview isn&apos;t available for this file type. Use View or Download above.
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
       {isAuthenticated && !loading && !resume && !error && (
-        <button type="button" onClick={() => fileInputRef.current?.click()}>
+        <button type="button" className="btn-primary" onClick={() => fileInputRef.current?.click()}>
           Upload Resume
         </button>
       )}
@@ -181,4 +231,3 @@ function ResumeManager() {
 }
 
 export default ResumeManager;
-

@@ -4,6 +4,8 @@ const cors = require('cors'); // Import CORS
 const multer = require('multer');
 const connectDB = require('./config/db');
 const resumeRoutes = require('./routes/resumeRoutes');
+const profilePictureRoutes = require('./routes/profilePictureRoutes');
+const jobRoutes = require('./routes/jobRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
@@ -17,7 +19,10 @@ if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-connectDB();
+
+if (process.env.NODE_ENV !== 'test') {
+    connectDB();
+}
 
 // Middleware
 app.use(cors()); // Allow frontend to communicate with backend
@@ -25,10 +30,12 @@ app.use(express.json()); // Parse incoming JSON data
 
 // Base health check
 app.get('/', (req, res) => {
-    res.status(200).send('CareerConnect Server is running!');
+    res.status(200).json({ message: 'CareerConnect Server is running!' });
 });
 
 app.use('/api/resumes', resumeRoutes);
+app.use('/api/profile/picture', profilePictureRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
@@ -38,7 +45,8 @@ function toProfile(user) {
         email: user.email,
         role: user.role,
         location: user.location,
-        bio: user.bio
+        bio: user.bio,
+        hasProfilePicture: Boolean(user.profilePicture)
     };
 }
 
@@ -245,7 +253,10 @@ app.use((err, req, res, next) => {
             : err.message;
         return res.status(400).json({ error: message });
     }
-    if (err && err.message && err.message.includes('Only PDF, DOC, and DOCX')) {
+    if (err && err.message && (
+        err.message.includes('Only PDF, DOC, and DOCX')
+        || err.message.includes('images are allowed')
+    )) {
         return res.status(400).json({ error: err.message });
     }
 
@@ -253,6 +264,10 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Server listening on http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app; // Export the app for testing purposes
