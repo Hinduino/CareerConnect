@@ -2,9 +2,9 @@
   "name": "careerconnect",
   "version": "1.0.0",
   "description": "CareerConnect is an online platform designed to help job seekers manage their job search activities. The platform allows users to create profiles, upload and manage resumes, explore job opportunities, monitor submitted applications, and track their application progress.",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node src/server.js",
     "lint": "eslint src/",
     "test:unit": "jest --selectProjects unit --passWithNoTests",
     "test:integration": "jest --selectProjects integration --passWithNoTests --detectOpenHandles",
@@ -17,7 +17,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
+  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Hinduino/CareerConnect/issues"
   },

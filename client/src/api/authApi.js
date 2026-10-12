@@ -7,13 +7,13 @@ async function parseJsonSafely(response) {
     return null;
   }
 }
-
-export async function registerUser(email, password) {
+export async function registerUser(email, password, confirmPassword) {
   const response = await fetch(`${API_BASE}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, confirmPassword }),
   });
+
   const data = await parseJsonSafely(response);
   if (!response.ok) {
     throw new Error(data?.error || "Failed to register");

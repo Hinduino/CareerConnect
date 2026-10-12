@@ -69,7 +69,8 @@ describe('CareerConnect Integration Tests', () => {
                 .post('/api/register')
                 .send({
                     email: 'test@example.com',
-                    password: 'securepassword123'
+                    password: 'Secure123!',
+                    confirmPassword: 'Secure123!'
                 });
 
             expect(res.status).toBe(201);
@@ -91,12 +92,20 @@ describe('CareerConnect Integration Tests', () => {
             // Seed a user into our memory database first
             await request(app)
                 .post('/api/register')
-                .send({ email: 'duplicate@example.com', password: 'password123' });
+                .send({
+                    email: 'duplicate@example.com',
+                    password: 'Password123!',
+                    confirmPassword: 'Password123!'
+                });
 
             // Attempt to register identical email
             const res = await request(app)
                 .post('/api/register')
-                .send({ email: 'duplicate@example.com', password: 'differentpassword' });
+                .send({
+                    email: 'duplicate@example.com',
+                    password: 'Different123!',
+                    confirmPassword: 'Different123!'
+                });
 
             expect(res.status).toBe(409);
             expect(res.body).toHaveProperty('error', 'Email already registered');
@@ -109,13 +118,20 @@ describe('CareerConnect Integration Tests', () => {
             // Create a default user profile to test logins against
             await request(app)
                 .post('/api/register')
-                .send({ email: 'loginme@example.com', password: 'correct_password' });
+                .send({
+                    email: 'loginme@example.com',
+                    password: 'Correct123!',
+                    confirmPassword: 'Correct123!'
+                });
         });
 
         it('should return a JWT token on valid credentials', async () => {
             const res = await request(app)
                 .post('/api/login')
-                .send({ email: 'loginme@example.com', password: 'correct_password' });
+                .send({
+                    email: 'loginme@example.com',
+                    password: 'Correct123!'
+                });
 
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('token');

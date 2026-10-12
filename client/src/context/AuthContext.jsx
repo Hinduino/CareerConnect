@@ -40,8 +40,8 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const register = async (email, password) => {
-    return registerUser(email, password);
+  const register = async (email, password, confirmPassword) => {
+    return await registerUser(email, password, confirmPassword);
   };
 
   const saveProfile = async (profile) => {
