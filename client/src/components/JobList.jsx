@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatPostedDate } from '../utils/dateUtils';
 
 async function requestJobs(filters) {
     try {
@@ -67,6 +68,7 @@ function JobList({ onViewDetails }) {
                             <h3>{job.title}</h3>
                             <p><strong>Company:</strong> {job.company}</p>
                             <p><strong>Location:</strong> {job.location} | <strong>Category:</strong> {job.category}</p>
+                            <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>
                             <button onClick={() => onViewDetails(job._id)}>View Details</button>
                         </div>
                     ))

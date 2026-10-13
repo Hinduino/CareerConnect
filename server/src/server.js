@@ -52,7 +52,7 @@ function toProfile(user) {
 
 // Sprint 1 Feature: User Registration
 app.post('/api/register', async (req, res) => {
-    const { email, password, confirmPassword } = req.body;
+    const { email, password, confirmPassword, role } = req.body;
 
     // Check that email and password are valid inputs
     if (
@@ -129,6 +129,13 @@ app.post('/api/register', async (req, res) => {
         });
     }
 
+    // Role is chosen at sign up (job seeker or recruiter) but can always be
+    // changed later from the profile settings page.
+    const normalizedRole = typeof role === 'string' ? role.trim() : '';
+    if (normalizedRole && !['job_seeker', 'recruiter'].includes(normalizedRole)) {
+        return res.status(400).json({ error: 'Invalid role' });
+    }
+
     // Check whether the email is already registered
     const existingUser = await User.findOne({ email: normalizedEmail });
 
@@ -142,7 +149,8 @@ app.post('/api/register', async (req, res) => {
     // Save the new user to MongoDB
     const newUser = await User.create({
         email: normalizedEmail,
-        password: hashedPassword
+        password: hashedPassword,
+        role: normalizedRole || 'job_seeker'
     });
 
     // Return the created user's safe information

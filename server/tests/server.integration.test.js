@@ -76,7 +76,36 @@ describe('CareerConnect Integration Tests', () => {
             expect(res.status).toBe(201);
             expect(res.body).toHaveProperty('message', 'User registered successfully!');
             expect(res.body.user).toHaveProperty('email', 'test@example.com');
+            expect(res.body.user).toHaveProperty('role', 'job_seeker'); // Defaults when no role is chosen
             expect(res.body.user).not.toHaveProperty('password'); // Ensure hashed password isn't leaked
+        });
+
+        it('should register a new user with the recruiter role chosen at sign up', async () => {
+            const res = await request(app)
+                .post('/api/register')
+                .send({
+                    email: 'recruiter@example.com',
+                    password: 'Secure123!',
+                    confirmPassword: 'Secure123!',
+                    role: 'recruiter'
+                });
+
+            expect(res.status).toBe(201);
+            expect(res.body.user).toHaveProperty('role', 'recruiter');
+        });
+
+        it('should reject an invalid role at sign up', async () => {
+            const res = await request(app)
+                .post('/api/register')
+                .send({
+                    email: 'badrole@example.com',
+                    password: 'Secure123!',
+                    confirmPassword: 'Secure123!',
+                    role: 'admin'
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty('error', 'Invalid role');
         });
 
         it('should fail if email or password fields are missing', async () => {

@@ -7,11 +7,11 @@ async function parseJsonSafely(response) {
     return null;
   }
 }
-export async function registerUser(email, password, confirmPassword) {
+export async function registerUser(email, password, confirmPassword, role) {
   const response = await fetch(`${API_BASE}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, confirmPassword }),
+    body: JSON.stringify({ email, password, confirmPassword, role }),
   });
 
   const data = await parseJsonSafely(response);
