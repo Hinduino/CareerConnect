@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { createJob, fetchMyJobs, updateJob } from '../api/jobApi';
+import { createJob, deleteJob, fetchMyJobs, updateJob } from '../api/jobApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
 import JobPostingForm from './JobPostingForm';
 
@@ -45,6 +45,23 @@ function RecruiterDashboard({ onBack }) {
     setMode('list');
     setEditingJob(null);
   };
+
+  // Delete a job posting after recruiter confirmation.
+const handleDelete = async (job) => {
+  if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    await deleteJob(token, job._id);
+    setJobs((currentJobs) =>
+      currentJobs.filter((item) => item._id !== job._id)
+    );
+    setError('');
+  } catch (err) {
+    setError(err.message);
+  }
+};
 
   return (
     <main className="profile-page">
@@ -98,6 +115,15 @@ function RecruiterDashboard({ onBack }) {
                   >
                     Edit Posting
                   </button>
+
+                  <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => handleDelete(job)}
+                >
+                  Delete Posting
+                </button>
+                
                 </div>
               ))}
             </div>

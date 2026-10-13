@@ -71,3 +71,21 @@ export async function updateJob(token, jobId, job) {
   }
   return data;
 }
+
+// Recruiter-only: delete a job posting owned by the logged-in recruiter.
+export async function deleteJob(token, jobId) {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await parseJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to delete job posting");
+  }
+
+  return data;
+}
