@@ -20,6 +20,7 @@ jest.mock('../src/middleware/auth', () => {
 const app = require('../src/server');
 const User = require('../src/models/User');
 const JobPosting = require('../src/models/JobPosting');
+const Application = require('../src/models/Application');
 
 let mongoServer;
 
@@ -257,5 +258,104 @@ describe('Job posting routes', () => {
             expect(res.body).toHaveLength(1);
             expect(res.body[0]).toHaveProperty('postedBy');
         });
+    });
+    describe('GET /api/applications/jobs/:jobId', () => {
+    it('allows a recruiter to view applications for their own posting', async () => {
+        const job = await JobPosting.create({
+            ...sampleJob(),
+            postedBy: recruiterId
+        });
+
+        await Application.create({
+            applicant: jobSeekerId,
+            job: job._id
+        });
+
+        const res = await request(app)
+            .get(`/api/applications/jobs/${job._id}`)
+            .set('test_user_id', recruiterId);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].status).toBe('Applied');
+        expect(res.body[0].applicant.email).toBe('seeker@example.com');
+        expect(res.body[0].applicant).not.toHaveProperty('password');
+        });
+    });
+    it('returns applications in first-come, first-served order', async () => {
+    const job = await JobPosting.create({
+        ...sampleJob(),
+        postedBy: recruiterId
+    });
+
+    const applicants = await User.create([
+        { email: 'first@example.com', password: 'password123', role: 'job_seeker' },
+        { email: 'second@example.com', password: 'password123', role: 'job_seeker' },
+        { email: 'third@example.com', password: 'password123', role: 'job_seeker' }
+    ]);
+
+    const dates = [
+        new Date('2026-10-14T09:00:00Z'),
+        new Date('2026-10-14T09:10:00Z'),
+        new Date('2026-10-14T09:20:00Z')
+    ];
+
+    const applications = await Application.create(
+        applicants.map((applicant, index) => ({
+            applicant: applicant._id,
+            job: job._id,
+            createdAt: dates[index]
+        })).reverse()
+    );
+
+    const res = await request(app)
+        .get(`/api/applications/jobs/${job._id}`)
+        .set('test_user_id', recruiterId);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(3);
+    expect(res.body.map(application => application._id)).toEqual(
+        [...applications].reverse().map(application => application._id.toString())
+    );
+});
+    it('prevents another recruiter from viewing applications', async () => {
+    const job = await JobPosting.create({
+        ...sampleJob(),
+        postedBy: recruiterId
+    });
+
+    await Application.create({
+        applicant: jobSeekerId,
+        job: job._id
+    });
+
+    const res = await request(app)
+        .get(`/api/applications/jobs/${job._id}`)
+        .set('test_user_id', otherRecruiterId);
+
+    expect(res.status).toBe(403);
+    });
+    it('rejects unauthenticated access to applications', async () => {
+    const job = await JobPosting.create({
+        ...sampleJob(),
+        postedBy: recruiterId
+    });
+
+    const res = await request(app)
+        .get(`/api/applications/jobs/${job._id}`);
+
+    expect(res.status).toBe(401);
+    });
+    it('prevents job seekers from viewing recruiter applications', async () => {
+    const job = await JobPosting.create({
+        ...sampleJob(),
+        postedBy: recruiterId
+    });
+
+    const res = await request(app)
+        .get(`/api/applications/jobs/${job._id}`)
+        .set('test_user_id', jobSeekerId);
+
+    expect(res.status).toBe(403);
     });
 });
