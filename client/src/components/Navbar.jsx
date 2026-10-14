@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick }) {
+function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick, onDashboardClick }) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState('login');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('job_seeker');
 
   const handleSignUp = async () => {
     if (password !== confirmPassword) {
@@ -15,13 +16,14 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
     }
 
     try {
-      await register(email, password, confirmPassword);
+      await register(email, password, confirmPassword, role);
       // Sign in right away so the new user can fill in their profile
-      await login(email, password);
+      const data = await login(email, password);
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      onSignUpSuccess();
+      setRole('job_seeker');
+      onSignUpSuccess(data.user);
     } catch (err) {
       alert(err.message);
     }
@@ -60,6 +62,9 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
         {isAuthenticated ? (
           <div className="navbar-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <span>{user?.email}</span>
+            {user?.role === 'recruiter' && (
+              <button type="button" className="btn-secondary" onClick={onDashboardClick}>Dashboard</button>
+            )}
             <button type="button" className="btn-secondary" onClick={onProfileClick}>Profile</button>
             <button type="button" className="btn-primary" onClick={handleLogout}>Log Out</button>
           </div>
@@ -78,12 +83,22 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
               onChange={(e) => setPassword(e.target.value)}
             />
             {authMode === 'signup' && (
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <>
+                <input
+                  type="password"
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <select
+                  aria-label="Sign up as"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="job_seeker">Job Seeker</option>
+                  <option value="recruiter">Recruiter</option>
+                </select>
+              </>
             )}
 
             {authMode === 'login' ? (

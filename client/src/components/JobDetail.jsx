@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatPostedDate } from '../utils/dateUtils';
 
 function JobDetail({ jobId, onBack }) {
     const [job, setJob] = useState(null);
@@ -42,6 +43,7 @@ function JobDetail({ jobId, onBack }) {
             <h2>{job.title}</h2>
             <h4>{job.company} - {job.location}</h4>
             <span style={{ background: '#eee', padding: '5px' }}>{job.category}</span>
+            <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>
 
             <div style={{ marginTop: '20px' }}>
                 <h3>Job Description</h3>

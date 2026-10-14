@@ -8,6 +8,7 @@ import ProfileView from './components/ProfileView'
 import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
+import RecruiterDashboard from './components/RecruiterDashboard'
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
@@ -18,21 +19,31 @@ function App() {
     try {
       await saveProfile(profile);
       alert('Profile saved successfully!');
-      setCurrentView('profile');
+      setCurrentView(profile.role === 'recruiter' ? 'recruiter-dashboard' : 'profile');
     } catch (err) {
       alert(err.message);
     }
   };
 
+  // Recruiters land on their dashboard right away; job seekers finish
+  // filling in their profile first. Either account type can always switch
+  // roles later from the profile settings page.
+  const routeAfterAuth = (authedUser) => {
+    setCurrentView(authedUser?.role === 'recruiter' ? 'recruiter-dashboard' : 'profile');
+  };
+
   return (
     <div className="app-container">
       <Navbar
-        onLoginSuccess={() => setCurrentView('profile')}
-        onSignUpSuccess={() => setCurrentView('edit-profile')}
+        onLoginSuccess={routeAfterAuth}
+        onSignUpSuccess={(authedUser) =>
+          setCurrentView(authedUser?.role === 'recruiter' ? 'recruiter-dashboard' : 'edit-profile')
+        }
         onLogout={() => setCurrentView('home')}
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
         onJobsClick={() => setCurrentView('jobs')}
+        onDashboardClick={() => setCurrentView('recruiter-dashboard')}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -47,6 +58,8 @@ function App() {
           onSave={handleSaveProfile}
           onBack={() => setCurrentView('profile')}
         />
+      ) : currentView === 'recruiter-dashboard' && isAuthenticated && user?.role === 'recruiter' ? (
+        <RecruiterDashboard onBack={() => setCurrentView('home')} />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {
