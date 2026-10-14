@@ -137,7 +137,6 @@ function RecruiterDashboard({ onBack }) {
                   </button>
 
                   <button
-                  <button
                     type="button"
                     className="btn-secondary"
                     onClick={() => handleViewApplications(job)}
