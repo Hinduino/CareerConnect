@@ -71,6 +71,9 @@ Additional team generated and GenAI features will be documented separately accor
 
 Clone the GitHub repository and open two separate terminal windows.
 
+**AI Chatbot Setup:**
+The chatbot sends requests to the [Kilo AI Gateway](https://kilo.ai/docs/gateway) without an API key, using Kilo's anonymous `kilo-auto/free` model. Kilo dynamically selects an available free model for each chat, so no model configuration is needed. Anonymous requests are subject to Kilo's rate limits.
+
 **Backend Setup:**  
 In the first terminal, navigate to the server directory and run `npm install` to install the required backend dependencies. Start the API using `node server.js`. The backend runs on port 3000.
 

@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
 import RecruiterDashboard from './components/RecruiterDashboard'
+import Chatbot from './components/Chatbot'
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
@@ -80,6 +81,7 @@ function App() {
       )}
 
       <Footer />
+      <Chatbot />
     </div>
   )
 }
