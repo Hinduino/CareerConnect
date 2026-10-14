@@ -22,8 +22,6 @@ function JobList({ onViewDetails }) {
 
     useEffect(() => {
         let cancelled = false;
-        setIsLoading(true);
-        setError('');
         
         requestJobs({ keyword: '', location: '', category: '' }).then((data) => {
             if (!cancelled) {
