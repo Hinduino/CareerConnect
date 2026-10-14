@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { sendChatMessage } from '../api/chatApi';
+import { useAuth } from '../context/AuthContext';
 
 const WELCOME_MESSAGE = {
   role: 'assistant',
@@ -7,6 +8,7 @@ const WELCOME_MESSAGE = {
 };
 
 function Chatbot() {
+  const { token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [draft, setDraft] = useState('');
@@ -26,7 +28,7 @@ function Chatbot() {
     setIsSending(true);
 
     try {
-      const reply = await sendChatMessage(conversation);
+      const reply = await sendChatMessage(conversation, token);
       setMessages((currentMessages) => [
         ...currentMessages,
         { role: 'assistant', content: reply }

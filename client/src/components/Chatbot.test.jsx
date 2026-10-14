@@ -3,13 +3,18 @@ const { fireEvent, render, screen, waitFor } = require('@testing-library/react')
 jest.mock('../api/chatApi', () => ({
   sendChatMessage: jest.fn(),
 }));
+jest.mock('../context/AuthContext', () => ({
+  useAuth: jest.fn(),
+}));
 
 const Chatbot = require('./Chatbot').default;
 const { sendChatMessage } = require('../api/chatApi');
+const { useAuth } = require('../context/AuthContext');
 
 describe('CareerConnect chatbot', () => {
   beforeEach(() => {
     sendChatMessage.mockReset();
+    useAuth.mockReturnValue({ token: 'session-token' });
   });
 
   it('opens from the floating launcher and sends a message to the assistant', async () => {
@@ -31,7 +36,7 @@ describe('CareerConnect chatbot', () => {
     expect(sendChatMessage).toHaveBeenCalledWith([
       expect.objectContaining({ role: 'assistant' }),
       { role: 'user', content: 'How can I improve my resume?' },
-    ]);
+    ], 'session-token');
   });
 
   it('shows API errors and leaves the failed message visible', async () => {

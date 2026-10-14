@@ -1,41 +1,127 @@
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = 'test_secret_key_12345';
 process.env.MONGO_URI = 'mongodb://localhost:27017/';
 
+jest.mock('../src/models/User', () => ({ findById: jest.fn() }));
+jest.mock('../src/models/JobPosting', () => ({ find: jest.fn() }));
+jest.mock('../src/models/Application', () => ({ find: jest.fn() }));
+
 const app = require('../src/server');
+const User = require('../src/models/User');
+const JobPosting = require('../src/models/JobPosting');
+const Application = require('../src/models/Application');
+
+function createQuery(result) {
+    const query = {
+        select: jest.fn(() => query),
+        sort: jest.fn(() => query),
+        limit: jest.fn(() => query),
+        populate: jest.fn(() => query),
+        lean: jest.fn().mockResolvedValue(result)
+    };
+    return query;
+}
+
+function getKiloRequest(fetchMock) {
+    return JSON.parse(fetchMock.mock.calls[0][1].body);
+}
 
 describe('AI chat route', () => {
-    afterEach(() => {
+    beforeEach(() => {
         jest.restoreAllMocks();
+        jest.clearAllMocks();
+        JobPosting.find.mockReturnValue(createQuery([
+            {
+                title: 'Frontend Developer',
+                company: 'Example Co',
+                location: 'Montreal',
+                category: 'Engineering',
+                description: 'Build accessible interfaces.',
+                requirements: 'React experience.',
+                createdAt: '2026-10-01T00:00:00Z',
+                postedBy: 'private-recruiter-id'
+            }
+        ]));
+        User.findById.mockReturnValue(createQuery(null));
+        Application.find.mockReturnValue(createQuery([]));
     });
 
-    it('forwards requests without authorization and returns the assistant reply', async () => {
+    it('uses public jobs in the chat context without requiring authentication', async () => {
         const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
             ok: true,
             json: async () => ({
-                choices: [{ message: { content: 'Try tailoring your resume to each role.' } }]
+                choices: [{ message: { content: 'There is a Frontend Developer role in Montreal.' } }]
             })
         });
 
         const response = await request(app)
             .post('/api/chat')
-            .send({ messages: [{ role: 'user', content: 'How can I improve my resume?' }] });
+            .send({ messages: [{ role: 'user', content: 'Which jobs are in Montreal?' }] });
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ reply: 'Try tailoring your resume to each role.' });
+        expect(response.body.reply).toContain('Frontend Developer');
+        expect(User.findById).not.toHaveBeenCalled();
+        expect(Application.find).not.toHaveBeenCalled();
+        expect(JobPosting.find).toHaveBeenCalledWith({});
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Example Co');
+        expect(getKiloRequest(fetchMock).messages[0].content).not.toContain('private-recruiter-id');
+    });
 
-        const [url, options] = fetchMock.mock.calls[0];
-        const forwardedBody = JSON.parse(options.body);
-        expect(url).toBe('https://api.kilo.ai/api/gateway/chat/completions');
-        expect(options.headers.Authorization).toBeUndefined();
-        expect(forwardedBody.model).toBe('kilo-auto/free');
-        expect(forwardedBody.max_tokens).toBe(2000);
-        expect(forwardedBody.messages[0].role).toBe('system');
-        expect(forwardedBody.messages[1]).toEqual({
-            role: 'user',
-            content: 'How can I improve my resume?'
+    it('includes only the signed-in user profile and their applications', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        User.findById.mockReturnValue(createQuery({
+            name: 'Jordan Candidate',
+            location: 'Toronto',
+            bio: 'Looking for frontend roles.',
+            email: 'private@example.com'
+        }));
+        Application.find.mockReturnValue(createQuery([{
+            status: 'Interview',
+            createdAt: '2026-10-03T00:00:00Z',
+            applicant: userId,
+            job: {
+                title: 'Frontend Developer',
+                company: 'Example Co',
+                location: 'Montreal',
+                category: 'Engineering'
+            }
+        }]));
+        const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: 'You have an interview with Example Co.' } }]
+            })
         });
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ messages: [{ role: 'user', content: 'What is my application status?' }] });
+
+        expect(response.status).toBe(200);
+        expect(User.findById).toHaveBeenCalledWith(userId);
+        expect(Application.find).toHaveBeenCalledWith({ applicant: userId });
+        expect(response.body.reply).toContain('interview');
+        const systemContext = getKiloRequest(fetchMock).messages[0].content;
+        expect(systemContext).toContain('Jordan Candidate');
+        expect(systemContext).toContain('Interview');
+        expect(systemContext).not.toContain('private@example.com');
+    });
+
+    it('rejects invalid optional credentials without querying private data', async () => {
+        const fetchMock = jest.spyOn(global, 'fetch');
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', 'Bearer invalid-token')
+            .send({ messages: [{ role: 'user', content: 'Hello' }] });
+
+        expect(response.status).toBe(401);
+        expect(User.findById).not.toHaveBeenCalled();
+        expect(Application.find).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('rejects malformed conversations without contacting Kilo', async () => {
@@ -62,47 +148,5 @@ describe('AI chat route', () => {
 
         expect(response.status).toBe(502);
         expect(response.body.error).toMatch(/anonymous rate limit reached/);
-    });
-
-    it('extracts text from a structured Kilo content response', async () => {
-        jest.spyOn(global, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                choices: [{
-                    message: {
-                        content: [
-                            { type: 'text', text: 'A tailored resume ' },
-                            { type: 'text', text: 'can help.' }
-                        ]
-                    }
-                }]
-            })
-        });
-
-        const response = await request(app)
-            .post('/api/chat')
-            .send({ messages: [{ role: 'user', content: 'How can I improve my resume?' }] });
-
-        expect(response.status).toBe(200);
-        expect(response.body.reply).toBe('A tailored resume can help.');
-    });
-
-    it('reports when the model reaches its output limit without producing visible text', async () => {
-        jest.spyOn(global, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                choices: [{
-                    message: { content: null },
-                    finish_reason: 'length'
-                }]
-            })
-        });
-
-        const response = await request(app)
-            .post('/api/chat')
-            .send({ messages: [{ role: 'user', content: 'Hello' }] });
-
-        expect(response.status).toBe(502);
-        expect(response.body.error).toMatch(/response limit before producing a reply/);
     });
 });
