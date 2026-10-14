@@ -66,6 +66,8 @@ function JobDetail({ jobId, onBack }) {
             }
         } catch (err) {
             setSubmitStatus('error');
+            console.error("Fetch error:", err);
+            setError('Failed to connect to the server.');
             setSubmitMessage('Network error. Unable to submit application.');
         } finally {
             setIsSubmitting(false);
