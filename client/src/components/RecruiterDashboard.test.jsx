@@ -5,11 +5,12 @@ jest.mock('../api/jobApi', () => ({
   fetchMyJobs: jest.fn(),
   createJob: jest.fn(),
   updateJob: jest.fn(),
+  deleteJob: jest.fn(),
 }));
 
 const RecruiterDashboard = require('./RecruiterDashboard').default;
 const { useAuth } = require('../context/AuthContext');
-const { fetchMyJobs, createJob, updateJob } = require('../api/jobApi');
+const { fetchMyJobs, createJob, updateJob, deleteJob} = require('../api/jobApi');
 
 const sampleJob = {
   _id: 'job-1',
@@ -81,5 +82,35 @@ describe('RecruiterDashboard', () => {
     await waitFor(() =>
       expect(updateJob).toHaveBeenCalledWith('token', 'job-1', expect.objectContaining({ title: 'Updated Title' }))
     );
+  });
+  // Verify that confirming deletion removes the posting.
+it('deletes a job posting after confirmation', async () => {
+  window.confirm = jest.fn(() => true);
+  deleteJob.mockResolvedValue({ message: 'Job posting deleted successfully' });
+
+  render(<RecruiterDashboard onBack={() => {}} />);
+
+  await screen.findByText('Backend Engineer');
+  fireEvent.click(screen.getByText('Delete Posting'));
+
+  expect(window.confirm).toHaveBeenCalled();
+
+  await waitFor(() => {
+    expect(deleteJob).toHaveBeenCalledWith('token', 'job-1');
+    expect(screen.queryByText('Backend Engineer')).not.toBeInTheDocument();
+  });
+});
+
+// Verify that cancelling deletion keeps the posting.
+it('does not delete a posting when confirmation is cancelled', async () => {
+  window.confirm = jest.fn(() => false);
+
+  render(<RecruiterDashboard onBack={() => {}} />);
+
+  await screen.findByText('Backend Engineer');
+  fireEvent.click(screen.getByText('Delete Posting'));
+
+  expect(deleteJob).not.toHaveBeenCalled();
+  expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
   });
 });

@@ -115,4 +115,26 @@ router.put('/:id', requireAuth, requireRole('recruiter'), async (req, res) => {
     }
 });
 
+// DELETE /api/jobs/:id - Recruiters delete their own job postings
+router.delete('/:id', requireAuth, requireRole('recruiter'), async (req, res) => {
+    try {
+        const job = await JobPosting.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        if (job.postedBy.toString() !== req.user.id) {
+            return res.status(403).json({
+                error: 'You can only delete your own job postings'
+            });
+        }
+
+        await job.deleteOne();
+        res.status(200).json({ message: 'Job posting deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error deleting job posting' });
+    }
+});
 module.exports = router;
