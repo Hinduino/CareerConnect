@@ -3,9 +3,10 @@ name: Web App Testing Pipeline
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
+    # Run on every pull request, including ones into parent story branches,
+  # so problems show up before code reaches main.
+  pull_request:  
+  
 jobs:
   test-suite:
     runs-on: ubuntu-latest
