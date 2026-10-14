@@ -446,3 +446,60 @@ body {
 .application-confirmation p {
   margin: 4px 0;
 }
+
+
+/* My Applications page (SCRUM-166) */
+.application-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.application-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.application-card-header h3,
+.application-card-header p {
+  margin: 0 0 4px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #e8eaed;
+  color: #303338;
+}
+
+.status-applied { background: #e3ecfb; color: #1d4f9c; }
+.status-under-review { background: #fff4d6; color: #7a5300; }
+.status-interview { background: #ede4fb; color: #5b2d9e; }
+.status-offered { background: #e1f4e4; color: #1e6b2d; }
+.status-rejected { background: #fbe4e4; color: #9c1d1d; }
+
+.status-history {
+  margin-top: 8px;
+}
+
+.status-history summary {
+  cursor: pointer;
+}
+
+.status-history ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.status-history li {
+  margin: 4px 0;
+}

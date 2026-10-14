@@ -103,3 +103,45 @@ describe('Navbar authenticated recruiter', () => {
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
   });
 });
+
+describe('Navbar My Applications link', () => {
+  const props = {
+    onLoginSuccess: jest.fn(),
+    onSignUpSuccess: jest.fn(),
+    onLogout: jest.fn(),
+    onProfileClick: jest.fn(),
+    onHomeClick: jest.fn(),
+    onJobsClick: jest.fn(),
+    onDashboardClick: jest.fn(),
+  };
+
+  it('shows My Applications to job seekers and opens the page when clicked', () => {
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { email: 'seeker@example.com', role: 'job_seeker' },
+      login: jest.fn(),
+      register: jest.fn(),
+      logout: jest.fn(),
+    });
+    const onApplicationsClick = jest.fn();
+
+    render(<Navbar {...props} onApplicationsClick={onApplicationsClick} />);
+
+    fireEvent.click(screen.getByText('My Applications'));
+    expect(onApplicationsClick).toHaveBeenCalled();
+  });
+
+  it('hides My Applications from recruiters', () => {
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { email: 'recruiter@example.com', role: 'recruiter' },
+      login: jest.fn(),
+      register: jest.fn(),
+      logout: jest.fn(),
+    });
+
+    render(<Navbar {...props} onApplicationsClick={jest.fn()} />);
+
+    expect(screen.queryByText('My Applications')).not.toBeInTheDocument();
+  });
+});
