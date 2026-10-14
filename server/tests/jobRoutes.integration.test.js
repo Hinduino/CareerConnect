@@ -170,6 +170,14 @@ describe('Job posting routes', () => {
 
             expect(res.status).toBe(404);
         });
+        it('returns 400 for an invalid job ID', async () => {
+            const res = await request(app)
+                .delete('/api/jobs/invalid-id')
+                .set('test_user_id', recruiterId);
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe('Invalid job ID');
+        });
     });
 
     describe('GET /api/jobs/mine', () => {
@@ -199,6 +207,15 @@ describe('Job posting routes', () => {
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('title', 'Senior Software Engineer');
         });
+        it('returns 400 for an invalid job ID', async () => {
+            const res = await request(app)
+                .put('/api/jobs/invalid-id')
+                .set('test_user_id', recruiterId)
+                .send(sampleJob());
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe('Invalid job ID');
+        });
 
         it('forbids another recruiter from modifying someone else\'s posting', async () => {
             const job = await JobPosting.create({ ...sampleJob(), postedBy: recruiterId });
@@ -221,7 +238,15 @@ describe('Job posting routes', () => {
             expect(res.status).toBe(404);
         });
     });
+    describe('GET /api/jobs/:id', () => {
+        it('returns 400 for an invalid job ID', async () => {
+            const res = await request(app)
+                .get('/api/jobs/invalid-id');
 
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe('Invalid job ID');
+        });
+    });
     describe('GET /api/jobs', () => {
         it('lists postings created by recruiters for job seekers to browse', async () => {
             await JobPosting.create({ ...sampleJob(), postedBy: recruiterId });

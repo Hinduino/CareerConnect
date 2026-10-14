@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const JobPosting = require('../models/JobPosting'); // Uses Nazila's database schema
 const requireAuth = require('../middleware/auth');
@@ -13,6 +14,13 @@ function validateJobFields(body) {
         }
     }
     return null;
+}
+
+function validateJobId(req, res, next) {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ error: 'Invalid job ID' });
+    }
+    next();
 }
 
 // GET /api/jobs/mine - Fetch the postings created by the logged-in recruiter.
@@ -46,7 +54,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/jobs/:id - Fetch detailed view of a single job
-router.get('/:id', async (req, res) => {
+router.get('/:id', validateJobId, async (req, res) => {
     try {
         const job = await JobPosting.findById(req.params.id);
         if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -84,7 +92,7 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
 });
 
 // PUT /api/jobs/:id - Recruiters modify a posting they own
-router.put('/:id', requireAuth, requireRole('recruiter'), async (req, res) => {
+router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
     try {
         const job = await JobPosting.findById(req.params.id);
         if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -116,7 +124,7 @@ router.put('/:id', requireAuth, requireRole('recruiter'), async (req, res) => {
 });
 
 // DELETE /api/jobs/:id - Recruiters delete their own job postings
-router.delete('/:id', requireAuth, requireRole('recruiter'), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
     try {
         const job = await JobPosting.findById(req.params.id);
 
