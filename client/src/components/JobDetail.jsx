@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatPostedDate } from '../utils/dateUtils';
+import { useAuth } from '../context/AuthContext';
 
 function JobDetail({ jobId, onBack }) {
     const [job, setJob] = useState(null);
@@ -23,8 +24,9 @@ function JobDetail({ jobId, onBack }) {
                     setError(data.error || 'Failed to load job details');
                 }
             } catch (err) {
-                console.error('Network Error:', err);
-                setError('Failed to connect to the server.');
+            console.error("Submission error:", err); // Add this line
+            setSubmitStatus('error');
+            setSubmitMessage('Network error. Unable to submit application.');
             }
         };
 
