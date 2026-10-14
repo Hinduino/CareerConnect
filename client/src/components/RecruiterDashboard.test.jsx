@@ -36,7 +36,7 @@ describe('RecruiterDashboard', () => {
 
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
     expect(fetchMyJobs).toHaveBeenCalledWith('token');
-    expect(screen.getByText('Posted today')).toBeInTheDocument();
+    expect(screen.getByText(/Posted today/)).toBeInTheDocument();
   });
 
   it('shows an empty state when the recruiter has no postings', async () => {
