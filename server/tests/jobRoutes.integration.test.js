@@ -124,6 +124,53 @@ describe('Job posting routes', () => {
             expect(res.status).toBe(401);
         });
     });
+    // DELETE /api/jobs/:id - Test recruiter job posting deletion.
+    describe('DELETE /api/jobs/:id', () => {
+
+        // Verify that a recruiter can delete their own posting.
+        it('allows the owning recruiter to delete their posting', async () => {
+            const job = await JobPosting.create({ ...sampleJob(), postedBy: recruiterId });
+
+            const res = await request(app)
+                .delete(`/api/jobs/${job._id}`)
+                .set('test_user_id', recruiterId);
+
+            expect(res.status).toBe(200);
+            expect(await JobPosting.findById(job._id)).toBeNull();
+        });
+
+        // Verify that recruiters cannot delete postings owned by others.
+        it('prevents another recruiter from deleting the posting', async () => {
+            const job = await JobPosting.create({ ...sampleJob(), postedBy: recruiterId });
+
+            const res = await request(app)
+                .delete(`/api/jobs/${job._id}`)
+                .set('test_user_id', otherRecruiterId);
+
+            expect(res.status).toBe(403);
+            expect(await JobPosting.findById(job._id)).not.toBeNull();
+        });
+
+        // Verify that users must be authenticated to delete postings.
+        it('rejects unauthenticated deletion', async () => {
+            const job = await JobPosting.create({ ...sampleJob(), postedBy: recruiterId });
+
+            const res = await request(app).delete(`/api/jobs/${job._id}`);
+
+            expect(res.status).toBe(401);
+        });
+
+        // Verify that deleting a nonexistent posting returns 404.
+        it('returns 404 for a nonexistent posting', async () => {
+            const missingId = new mongoose.Types.ObjectId();
+
+            const res = await request(app)
+                .delete(`/api/jobs/${missingId}`)
+                .set('test_user_id', recruiterId);
+
+            expect(res.status).toBe(404);
+        });
+    });
 
     describe('GET /api/jobs/mine', () => {
         it('returns only the postings created by the logged-in recruiter', async () => {
