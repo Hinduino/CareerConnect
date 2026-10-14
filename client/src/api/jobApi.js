@@ -71,3 +71,19 @@ export async function updateJob(token, jobId, job) {
   }
   return data;
 }
+// Recruiter-only: fetch applications received for a specific job posting.
+export async function fetchJobApplications(token, jobId) {
+  const response = await fetch(`${API_BASE}/applications/jobs/${jobId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await parseJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to load job applications");
+  }
+
+  return data;
+}

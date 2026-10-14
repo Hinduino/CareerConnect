@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { createJob, fetchMyJobs, updateJob } from '../api/jobApi';
+import { createJob, fetchMyJobs, fetchJobApplications, updateJob } from '../api/jobApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
 import JobPostingForm from './JobPostingForm';
 
@@ -12,6 +12,10 @@ function RecruiterDashboard({ onBack }) {
   const [mode, setMode] = useState('list'); // 'list' | 'create' | 'edit'
   const [editingJob, setEditingJob] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [applicationsError, setApplicationsError] = useState('');
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -46,6 +50,23 @@ function RecruiterDashboard({ onBack }) {
     setEditingJob(null);
   };
 
+  // Load applications for the selected job posting.
+  const handleViewApplications = async (job) => {
+    setSelectedJob(job);
+    setApplications([]);
+    setApplicationsLoading(true);
+    setApplicationsError('');
+    setMode('applications');
+
+    try {
+      const data = await fetchJobApplications(token, job._id);
+      setApplications(data);
+    } catch (err) {
+      setApplicationsError(err.message);
+    } finally {
+      setApplicationsLoading(false);
+    }
+  };
   return (
     <main className="profile-page">
       <div className="profile-container">
@@ -98,12 +119,56 @@ function RecruiterDashboard({ onBack }) {
                   >
                     Edit Posting
                   </button>
+
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => handleViewApplications(job)}
+                  >
+                    View Applications
+                  </button>
+
                 </div>
               ))}
             </div>
           </>
         )}
+        {mode === 'applications' && selectedJob && (
+          <section>
+            <h2>Applications for {selectedJob.title}</h2>
 
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setMode('list');
+                setSelectedJob(null);
+              }}
+            >
+              Back to Postings
+            </button>
+
+            {applicationsLoading && <p>Loading applications...</p>}
+
+            {applicationsError && (
+              <p className="resume-error">{applicationsError}</p>
+            )}
+
+            {!applicationsLoading && !applicationsError && applications.length === 0 && (
+              <p>No applications received yet.</p>
+            )}
+
+            {!applicationsLoading && !applicationsError && applications.map((application) => (
+              <div key={application._id} className="job-card">
+                <h3>{application.applicant?.name || 'Applicant'}</h3>
+                <p><strong>Email:</strong> {application.applicant?.email || 'Unavailable'}</p>
+                <p><strong>Location:</strong> {application.applicant?.location || 'Not provided'}</p>
+                <p><strong>Status:</strong> {application.status}</p>
+                <p><strong>Applied:</strong> {new Date(application.createdAt).toLocaleDateString()}</p>
+              </div>
+            ))}
+          </section>
+        )}
         {mode === 'create' && (
           <JobPostingForm
             submitLabel="Post Job"
