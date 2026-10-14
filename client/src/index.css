@@ -422,3 +422,27 @@ body {
   display: flex;
   gap: 0.75rem;
 }
+
+
+/* Job application: Apply button area and the confirmation shown afterwards */
+.job-apply-area {
+  margin-top: 20px;
+}
+
+.application-confirmation {
+  border: 1px solid #2e7d32;
+  border-left-width: 6px;
+  background: #edf7ee;
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: #1b3d1e;
+}
+
+.application-confirmation h3 {
+  margin: 0 0 6px;
+  color: #2e7d32;
+}
+
+.application-confirmation p {
+  margin: 4px 0;
+}
