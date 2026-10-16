@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
 import RecruiterDashboard from './components/RecruiterDashboard'
+import MyApplications from './components/MyApplications'
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
@@ -44,6 +45,7 @@ function App() {
         onHomeClick={() => setCurrentView('home')}
         onJobsClick={() => setCurrentView('jobs')}
         onDashboardClick={() => setCurrentView('recruiter-dashboard')}
+        onApplicationsClick={() => setCurrentView('my-applications')}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -60,6 +62,8 @@ function App() {
         />
       ) : currentView === 'recruiter-dashboard' && isAuthenticated && user?.role === 'recruiter' ? (
         <RecruiterDashboard onBack={() => setCurrentView('home')} />
+      ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
+        <MyApplications onBrowseJobs={() => setCurrentView('jobs')} />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {

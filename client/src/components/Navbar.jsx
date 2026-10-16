@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick, onDashboardClick }) {
+function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick, onDashboardClick, onApplicationsClick }) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,6 +64,9 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
             <span>{user?.email}</span>
             {user?.role === 'recruiter' && (
               <button type="button" className="btn-secondary" onClick={onDashboardClick}>Dashboard</button>
+            )}
+            {user?.role === 'job_seeker' && (
+              <button type="button" className="btn-secondary" onClick={onApplicationsClick}>My Applications</button>
             )}
             <button type="button" className="btn-secondary" onClick={onProfileClick}>Profile</button>
             <button type="button" className="btn-primary" onClick={handleLogout}>Log Out</button>
