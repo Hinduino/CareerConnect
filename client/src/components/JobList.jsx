@@ -18,11 +18,21 @@ function JobList({ onViewDetails }) {
     const [keyword, setKeyword] = useState('');
     const [location, setLocation] = useState('');
     const [category, setCategory] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
 
     useEffect(() => {
         let cancelled = false;
+        
         requestJobs({ keyword: '', location: '', category: '' }).then((data) => {
-            if (!cancelled && data) setJobs(data);
+            if (!cancelled) {
+                setIsLoading(false); // STOP LOADING
+                if (data) {
+                    setJobs(data);
+                } else {
+                    setError('Failed to load jobs. Please check your connection.'); // SET ERROR
+                }
+            }
         });
         return () => {
             cancelled = true;
@@ -31,8 +41,17 @@ function JobList({ onViewDetails }) {
 
     const handleFilterSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
+        setError('');
+        
         const data = await requestJobs({ keyword, location, category });
-        if (data) setJobs(data);
+        
+        setIsLoading(false); // STOP LOADING
+        if (data) {
+            setJobs(data);
+        } else {
+            setError('Failed to fetch jobs. Please try again later.'); // SET ERROR
+        }
     };
 
     return (
@@ -62,7 +81,12 @@ function JobList({ onViewDetails }) {
             </form>
 
             <div className="job-cards">
-                {jobs.length > 0 ? (
+                {/* CONDITIONAL RENDERING FOR LOADING, ERRORS, AND JOBS */}
+                {isLoading ? (
+                    <p>Loading jobs...</p>
+                ) : error ? (
+                    <p style={{ color: 'red' }}>{error}</p>
+                ) : jobs.length > 0 ? (
                     jobs.map((job) => (
                         <div key={job._id} style={{ border: '1px solid #ccc', padding: '15px', margin: '10px 0' }}>
                             <h3>{job.title}</h3>
