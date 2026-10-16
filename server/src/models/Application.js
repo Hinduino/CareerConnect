@@ -6,7 +6,7 @@ const applicationSchema = new mongoose.Schema(
     job: { type: mongoose.Schema.Types.ObjectId, ref: "JobPosting", required: true },
     status: {
       type: String,
-      enum: ["Applied", "Interview", "Offered", "Rejected"],
+      enum: ["Applied", "Under Review", "Interview", "Offered", "Rejected"],
       default: "Applied",
     },
   },

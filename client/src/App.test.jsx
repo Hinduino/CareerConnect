@@ -3,11 +3,12 @@ const { fireEvent, render, screen } = require('@testing-library/react');
 jest.mock('./context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('./components/Navbar', () => ({
   __esModule: true,
-  default: function MockNavbar({ onProfileClick, onHomeClick }) {
+  default: function MockNavbar({ onProfileClick, onHomeClick, onDashboardClick }) {
     return (
       <nav>
         <button onClick={onProfileClick}>Profile navigation</button>
         <button onClick={onHomeClick}>Home navigation</button>
+        <button onClick={onDashboardClick}>Dashboard navigation</button>
       </nav>
     );
   },
@@ -26,6 +27,9 @@ jest.mock('./components/ProfileView', () => function MockProfileView({ onBack })
 });
 jest.mock('./components/JobList', () => function MockJobList() { return <div>Job list</div>; });
 jest.mock('./components/JobDetail', () => function MockJobDetail() { return <div>Job details</div>; });
+jest.mock('./components/RecruiterDashboard', () => function MockRecruiterDashboard() {
+  return <div>Recruiter dashboard</div>;
+});
 
 const App = require('./App').default;
 const { useAuth } = require('./context/AuthContext');
@@ -52,5 +56,20 @@ describe('App profile navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Profile back' }));
     expect(screen.getByText('Home hero')).toBeInTheDocument();
+  });
+});
+
+describe('App recruiter dashboard navigation', () => {
+  it('routes recruiters to the recruiter dashboard and not the job seeker profile view', () => {
+    useAuth.mockReturnValue({
+      user: { name: 'Riley Recruiter', role: 'recruiter' },
+      isAuthenticated: true,
+      saveProfile: jest.fn(),
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard navigation' }));
+    expect(screen.getByText('Recruiter dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('Profile details')).not.toBeInTheDocument();
   });
 });
