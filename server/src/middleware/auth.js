@@ -16,7 +16,12 @@ function requireAuth(req, res, next) {
     req.user = { id: decoded.userId };
     next();
   } catch (err) {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    // Tokens last one hour (see POST /api/login). Telling an expired token
+    // apart from a bad one lets the frontend ask the user to log in again.
+    const error = err.name === "TokenExpiredError"
+      ? "Your session has expired. Please log in again."
+      : "Invalid token";
+    return res.status(401).json({ error });
   }
 }
 

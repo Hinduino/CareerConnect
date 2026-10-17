@@ -29,6 +29,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Middleware
 app.use(cors()); // Allow frontend to communicate with backend
 app.use(express.json()); // Parse incoming JSON data
+app.use('/api/applications', applicationRoutes);
 
 // Base health check
 app.get('/', (req, res) => {
@@ -258,7 +259,15 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 
 
 // Error handling
+// Express only treats a middleware as an error handler when it takes all four
+// arguments, so `next` must stay even though most errors are answered here.
 app.use((err, req, res, next) => {
+    // If a response was already partly sent, we can't send a new one: hand the
+    // error to Express's default handler, which closes the connection safely.
+    if (res.headersSent) {
+        return next(err);
+    }
+
     if (err instanceof multer.MulterError) {
         const message = err.code === 'LIMIT_FILE_SIZE'
             ? 'File is too large. Maximum size is 5MB.'
