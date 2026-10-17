@@ -36,7 +36,7 @@ describe('CareerConnect chatbot', () => {
     expect(sendChatMessage).toHaveBeenCalledWith([
       expect.objectContaining({ role: 'assistant' }),
       { role: 'user', content: 'How can I improve my resume?' },
-    ], 'session-token');
+    ], 'session-token', null);
   });
 
   it('expands to full screen and returns to the floating panel', () => {
@@ -49,6 +49,34 @@ describe('CareerConnect chatbot', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
     expect(panel).not.toHaveClass('chatbot-panel-fullscreen');
+  });
+
+  it('attaches a document to the next chat message', async () => {
+    sendChatMessage.mockResolvedValue('The document summarizes your experience.');
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    const document = new File(['resume text'], 'resume.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    fireEvent.change(screen.getByLabelText('Choose a document to share'), {
+      target: { files: [document] },
+    });
+    expect(screen.getByText('resume.docx')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Your message'), {
+      target: { value: 'Summarize my resume.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(sendChatMessage).toHaveBeenCalledWith(
+        expect.any(Array),
+        'session-token',
+        document
+      );
+    });
+    expect(screen.getByText('resume.docx')).toBeInTheDocument();
   });
 
   it('shows API errors and leaves the failed message visible', async () => {

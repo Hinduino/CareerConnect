@@ -1,15 +1,25 @@
 const API_BASE = "http://localhost:3000/api";
 
-export async function sendChatMessage(messages, token) {
-  const headers = { "Content-Type": "application/json" };
+export async function sendChatMessage(messages, token, document) {
+  const headers = {};
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  }
+
+  let body;
+  if (document) {
+    body = new FormData();
+    body.append("messages", JSON.stringify(messages));
+    body.append("document", document);
+  } else {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify({ messages });
   }
 
   const response = await fetch(`${API_BASE}/chat`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ messages }),
+    body,
   });
 
   let data;

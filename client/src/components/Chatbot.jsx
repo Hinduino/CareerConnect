@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { sendChatMessage } from '../api/chatApi';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,12 +9,14 @@ const WELCOME_MESSAGE = {
 
 function Chatbot() {
   const { token } = useAuth();
+  const fileInputRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
+  const [document, setDocument] = useState(null);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -29,7 +31,7 @@ function Chatbot() {
     setIsSending(true);
 
     try {
-      const reply = await sendChatMessage(conversation, token);
+      const reply = await sendChatMessage(conversation, token, document);
       setMessages((currentMessages) => [
         ...currentMessages,
         { role: 'assistant', content: reply }
@@ -104,6 +106,34 @@ function Chatbot() {
               maxLength={2000}
               disabled={isSending}
             />
+            <input
+              ref={fileInputRef}
+              className="chatbot-sr-only"
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              aria-label="Choose a document to share"
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null;
+                if (file && file.size > 5 * 1024 * 1024) {
+                  setError('Document is too large. Maximum size is 5MB.');
+                  event.target.value = '';
+                  return;
+                }
+                setError('');
+                setDocument(file);
+              }}
+              disabled={isSending}
+            />
+            <button
+              className="chatbot-attach"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending}
+              aria-label="Attach a document"
+              title="Attach a PDF, DOC, or DOCX document"
+            >
+              Attach
+            </button>
             <button
               className="chatbot-send"
               type="submit"
@@ -112,6 +142,24 @@ function Chatbot() {
               Send
             </button>
           </form>
+          {document && (
+            <div className="chatbot-document">
+              <span title={document.name}>{document.name}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocument(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                aria-label="Remove attached document"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <p className="chatbot-document-note">
+            PDF, DOC, and DOCX up to 5MB. Up to 12,000 text characters are sent to Kilo AI while attached.
+          </p>
         </section>
       )}
 

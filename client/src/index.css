@@ -603,6 +603,21 @@ body {
   outline: 2px solid rgba(17, 17, 17, 0.12);
 }
 
+.chatbot-attach {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 7px;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chatbot-attach:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chatbot-send {
   padding: 0.6rem 0.8rem;
   border: 0;
@@ -616,6 +631,39 @@ body {
 .chatbot-send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.chatbot-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.9rem 0.4rem;
+  color: #333;
+  font-size: 0.8rem;
+}
+
+.chatbot-document span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatbot-document button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.1rem;
+}
+
+.chatbot-document-note {
+  margin: 0;
+  padding: 0 0.9rem 0.75rem;
+  color: #777;
+  font-size: 0.7rem;
 }
 
 .chatbot-sr-only {

@@ -7,11 +7,13 @@ process.env.MONGO_URI = 'mongodb://localhost:27017/';
 jest.mock('../src/models/User', () => ({ findById: jest.fn() }));
 jest.mock('../src/models/JobPosting', () => ({ find: jest.fn() }));
 jest.mock('../src/models/Application', () => ({ find: jest.fn() }));
+jest.mock('../src/utils/documentText', () => jest.fn());
 
 const app = require('../src/server');
 const User = require('../src/models/User');
 const JobPosting = require('../src/models/JobPosting');
 const Application = require('../src/models/Application');
+const extractDocumentText = require('../src/utils/documentText');
 
 function createQuery(result) {
     const query = {
@@ -32,6 +34,10 @@ describe('AI chat route', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
+        extractDocumentText.mockResolvedValue({
+            text: 'Candidate has five years of frontend experience.',
+            truncated: false
+        });
         JobPosting.find.mockReturnValue(createQuery([
             {
                 title: 'Frontend Developer',
@@ -132,6 +138,73 @@ describe('AI chat route', () => {
 
         expect(response.status).toBe(400);
         expect(response.body.error).toMatch(/ending with a user message/);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('extracts an attached document and includes its text in the Kilo request', async () => {
+        const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: 'Your document highlights five years of experience.' } }]
+            })
+        });
+
+        const response = await request(app)
+            .post('/api/chat')
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Summarize my document.' }]))
+            .attach('document', Buffer.from('docx bytes'), {
+                filename: 'resume.docx',
+                contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+
+        expect(response.status).toBe(200);
+        expect(extractDocumentText).toHaveBeenCalledWith(expect.objectContaining({
+            originalname: 'resume.docx'
+        }));
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Candidate has five years');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('resume.docx');
+        expect(getKiloRequest(fetchMock).messages).toHaveLength(2);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1000);
+    });
+
+    it('limits conversation history when a document is attached', async () => {
+        const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: 'Document reviewed.' } }]
+            })
+        });
+        const messages = Array.from({ length: 10 }, (_, index) => ({
+            role: index % 2 === 0 ? 'assistant' : 'user',
+            content: `Message ${index}`
+        }));
+        messages[messages.length - 1].role = 'user';
+
+        const response = await request(app)
+            .post('/api/chat')
+            .field('messages', JSON.stringify(messages))
+            .attach('document', Buffer.from('docx bytes'), {
+                filename: 'resume.docx',
+                contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+
+        expect(response.status).toBe(200);
+        expect(getKiloRequest(fetchMock).messages).toHaveLength(7);
+        expect(getKiloRequest(fetchMock).messages[1].content).toBe('Message 4');
+    });
+
+    it('rejects unsupported document file types', async () => {
+        const fetchMock = jest.spyOn(global, 'fetch');
+        const response = await request(app)
+            .post('/api/chat')
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Read this file.' }]))
+            .attach('document', Buffer.from('not a document'), {
+                filename: 'script.exe',
+                contentType: 'application/octet-stream'
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toMatch(/Only PDF, DOC, and DOCX/);
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
