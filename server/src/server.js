@@ -7,6 +7,7 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const profilePictureRoutes = require('./routes/profilePictureRoutes');
 const jobRoutes = require('./routes/jobRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
@@ -39,6 +40,7 @@ app.use('/api/resumes', resumeRoutes);
 app.use('/api/profile/picture', profilePictureRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/chat', chatRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
