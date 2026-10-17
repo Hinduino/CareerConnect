@@ -1,32 +1,47 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
-const { createApplication } = require('../queries/applicationQueries');
-// Assuming you have an authentication middleware from Sprint 1
-// const requireAuth = require('../middleware/auth'); 
 
-// POST /api/applications - Submit a new job application
-router.post('/', async (req, res) => {
+const Application = require('../models/Application');
+const JobPosting = require('../models/JobPosting');
+const requireAuth = require('../middleware/auth');
+const requireRole = require('../middleware/requireRole');
+
+// GET /api/applications/jobs/:jobId
+// Allow recruiters to view applications for their own job postings.
+router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
     try {
-        const { jobId, applicantId } = req.body; 
-        // Note: If using auth middleware, replace applicantId with req.user.id
+        const { jobId } = req.params;
 
-        if (!jobId || !applicantId) {
-            return res.status(400).json({ error: 'Job ID and Applicant ID are required.' });
+        // Validate the job posting ID.
+        if (!mongoose.isValidObjectId(jobId)) {
+            return res.status(400).json({ error: 'Invalid job ID' });
         }
 
-        const application = await createApplication(applicantId, jobId);
-        
-        // Provide confirmation that the application has been submitted
-        res.status(201).json({ 
-            message: 'Application submitted successfully!', 
-            application 
-        });
+        // Verify that the job exists and belongs to this recruiter.
+        const job = await JobPosting.findById(jobId);
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        if (job.postedBy.toString() !== req.user.id) {
+            return res.status(403).json({
+                error: 'You can only view applications for your own postings'
+            });
+        }
+
+        // Retrieve applications with safe applicant details.
+        const applications = await Application.find({ job: jobId })
+            .populate('applicant', 'name email location')
+            .sort({ createdAt: 1, _id: 1 });
+
+        return res.status(200).json(applications);
     } catch (error) {
-        console.error('Application Submission Error:', error);
-        if (error.message === "You have already applied for this job.") {
-             return res.status(409).json({ error: error.message });
-        }
-        res.status(500).json({ error: 'Server error submitting application.' });
+        console.error(error);
+        return res.status(500).json({
+            error: 'Server error fetching applications'
+        });
     }
 });
 
