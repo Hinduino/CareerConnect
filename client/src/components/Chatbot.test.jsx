@@ -39,6 +39,18 @@ describe('CareerConnect chatbot', () => {
     ], 'session-token');
   });
 
+  it('expands to full screen and returns to the floating panel', () => {
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    const panel = screen.getByRole('region', { name: 'CareerConnect AI chat' });
+    fireEvent.click(screen.getByRole('button', { name: 'Enter full screen' }));
+    expect(panel).toHaveClass('chatbot-panel-fullscreen');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
+    expect(panel).not.toHaveClass('chatbot-panel-fullscreen');
+  });
+
   it('shows API errors and leaves the failed message visible', async () => {
     sendChatMessage.mockRejectedValue(new Error('The chat assistant is not configured yet'));
     render(<Chatbot />);

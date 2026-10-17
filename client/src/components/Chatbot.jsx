@@ -10,6 +10,7 @@ const WELCOME_MESSAGE = {
 function Chatbot() {
   const { token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -41,22 +42,40 @@ function Chatbot() {
   };
 
   return (
-    <div className="chatbot">
+    <div className={`chatbot${isFullscreen ? ' chatbot-fullscreen' : ''}`}>
       {isOpen && (
-        <section className="chatbot-panel" aria-label="CareerConnect AI chat">
+        <section
+          className={`chatbot-panel${isFullscreen ? ' chatbot-panel-fullscreen' : ''}`}
+          aria-label="CareerConnect AI chat"
+        >
           <header className="chatbot-header">
             <div>
               <p className="chatbot-eyebrow">CAREERCONNECT</p>
               <h2>AI Assistant</h2>
             </div>
-            <button
-              className="chatbot-close"
-              type="button"
-              onClick={() => setIsOpen(false)}
-              aria-label="Close chat"
-            >
-              ×
-            </button>
+            <div className="chatbot-header-actions">
+              <button
+                className="chatbot-header-button"
+                type="button"
+                onClick={() => setIsFullscreen((fullscreen) => !fullscreen)}
+                aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'}
+                title={isFullscreen ? 'Exit full screen' : 'Enter full screen'}
+              >
+                <span aria-hidden="true">{isFullscreen ? '⤢' : '⛶'}</span>
+              </button>
+              <button
+                className="chatbot-header-button chatbot-close"
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsFullscreen(false);
+                }}
+                aria-label="Close chat"
+                title="Close chat"
+              >
+                ×
+              </button>
+            </div>
           </header>
 
           <div className="chatbot-messages" aria-live="polite">
