@@ -7,6 +7,23 @@ const WELCOME_MESSAGE = {
   content: "Hi! I'm the CareerConnect AI assistant. Ask me about job searching, applications, resumes, or interviews."
 };
 
+const DOCUMENT_TYPES = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+function validateDocument(file) {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (!extension || DOCUMENT_TYPES[extension] !== file.type) {
+    return 'Only matching PDF, DOC, and DOCX files are allowed.';
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return 'Document is too large. Maximum size is 5MB.';
+  }
+  return null;
+}
+
 function Chatbot() {
   const { token } = useAuth();
   const fileInputRef = useRef(null);
@@ -114,11 +131,21 @@ function Chatbot() {
               aria-label="Choose a document to share"
               onChange={(event) => {
                 const file = event.target.files?.[0] || null;
-                if (file && file.size > 5 * 1024 * 1024) {
-                  setError('Document is too large. Maximum size is 5MB.');
-                  event.target.value = '';
+                if (file) {
+                  const validationError = validateDocument(file);
+                  if (validationError) {
+                    setDocument(null);
+                    setError(validationError);
+                    event.target.value = '';
+                    return;
+                  }
+                }
+                if (!file) {
+                  setDocument(null);
+                  setError('');
                   return;
                 }
+
                 setError('');
                 setDocument(file);
               }}

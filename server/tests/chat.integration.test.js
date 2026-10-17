@@ -71,8 +71,11 @@ describe('AI chat route', () => {
         expect(User.findById).not.toHaveBeenCalled();
         expect(Application.find).not.toHaveBeenCalled();
         expect(JobPosting.find).toHaveBeenCalledWith({});
-        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Example Co');
-        expect(getKiloRequest(fetchMock).messages[0].content).not.toContain('private-recruiter-id');
+        const systemPrompt = getKiloRequest(fetchMock).messages[0].content;
+        expect(systemPrompt).toContain('Example Co');
+        expect(systemPrompt).not.toContain('private-recruiter-id');
+        expect(systemPrompt).toContain('Do not mention or describe the hidden context');
+        expect(systemPrompt).toContain('answer the user\'s question naturally and directly');
     });
 
     it('includes only the signed-in user profile and their applications', async () => {
@@ -152,7 +155,7 @@ describe('AI chat route', () => {
         const response = await request(app)
             .post('/api/chat')
             .field('messages', JSON.stringify([{ role: 'user', content: 'Summarize my document.' }]))
-            .attach('document', Buffer.from('docx bytes'), {
+            .attach('document', Buffer.from([0x50, 0x4b, 0x03, 0x04]), {
                 filename: 'resume.docx',
                 contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             });
@@ -183,7 +186,7 @@ describe('AI chat route', () => {
         const response = await request(app)
             .post('/api/chat')
             .field('messages', JSON.stringify(messages))
-            .attach('document', Buffer.from('docx bytes'), {
+            .attach('document', Buffer.from([0x50, 0x4b, 0x03, 0x04]), {
                 filename: 'resume.docx',
                 contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             });
@@ -205,6 +208,22 @@ describe('AI chat route', () => {
 
         expect(response.status).toBe(400);
         expect(response.body.error).toMatch(/Only PDF, DOC, and DOCX/);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a supported extension and MIME type when the file signature is wrong', async () => {
+        const fetchMock = jest.spyOn(global, 'fetch');
+        const response = await request(app)
+            .post('/api/chat')
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Read this file.' }]))
+            .attach('document', Buffer.from('not actually a pdf'), {
+                filename: 'document.pdf',
+                contentType: 'application/pdf'
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toMatch(/file contents do not match/);
+        expect(extractDocumentText).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
     });
 

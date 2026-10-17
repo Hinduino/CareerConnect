@@ -79,6 +79,41 @@ describe('CareerConnect chatbot', () => {
     expect(screen.getByText('resume.docx')).toBeInTheDocument();
   });
 
+  it('rejects unsupported document extensions and MIME types', () => {
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    const unsupportedFile = new File(['script'], 'notes.txt', {
+      type: 'text/plain',
+    });
+    fireEvent.change(screen.getByLabelText('Choose a document to share'), {
+      target: { files: [unsupportedFile] },
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Only matching PDF, DOC, and DOCX files are allowed.'
+    );
+    expect(screen.queryByText('notes.txt')).not.toBeInTheDocument();
+    expect(sendChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a supported extension with a mismatched MIME type', () => {
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    const mismatchedFile = new File(['resume'], 'resume.pdf', {
+      type: 'application/msword',
+    });
+    fireEvent.change(screen.getByLabelText('Choose a document to share'), {
+      target: { files: [mismatchedFile] },
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Only matching PDF, DOC, and DOCX files are allowed.'
+    );
+    expect(screen.queryByText('resume.pdf')).not.toBeInTheDocument();
+  });
+
   it('shows API errors and leaves the failed message visible', async () => {
     sendChatMessage.mockRejectedValue(new Error('The chat assistant is not configured yet'));
     render(<Chatbot />);
