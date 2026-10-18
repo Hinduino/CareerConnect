@@ -71,6 +71,9 @@ Additional team generated and GenAI features will be documented separately accor
 
 Clone the GitHub repository and open two separate terminal windows.
 
+**AI Chatbot Setup:**
+The chatbot sends requests to the [Kilo AI Gateway](https://kilo.ai/docs/gateway) without an API key, using Kilo's anonymous `kilo-auto/free` model. Kilo dynamically selects an available free model for each chat, so no model configuration is needed. The server adds up to 20 public job listings to chat context; for signed-in users, it also includes a limited profile summary and their own 25 most recent applications. Users can also attach PDF, DOC, and DOCX files up to 5MB. The server extracts up to 12,000 characters of text in memory and sends that text to Kilo with each chat request while the document remains attached; uploaded files are not stored by the chat endpoint. Document requests use a smaller database context, the six latest conversation messages, and a 90-second Kilo timeout to limit prompt size and allow longer model responses. These details are sent to Kilo to generate replies. Do not enter sensitive information in chat. Anonymous requests are subject to Kilo's rate limits.
+
 **Backend Setup:**  
 In the first terminal, navigate to the server directory and run `npm install` to install the required backend dependencies. Start the API using `node server.js`. The backend runs on port 3000.
 
