@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
-const { createApplication } = require('../queries/applicationQueries');
+const { createApplication } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 
