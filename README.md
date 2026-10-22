@@ -69,19 +69,19 @@ Additional team generated and GenAI features will be documented separately accor
 
 ## Project Setup
 
-Clone the GitHub repository and open two separate terminal windows.
+Clone the GitHub repository, install Node.js 20.19.0 or newer, and open two terminal windows in the repository.
 
 **AI Chatbot Setup:**
 The chatbot sends requests to the [Kilo AI Gateway](https://kilo.ai/docs/gateway) without an API key, using Kilo's anonymous `kilo-auto/free` model. Kilo dynamically selects an available free model for each chat, so no model configuration is needed. The server adds up to 20 public job listings to chat context; for signed-in users, it also includes a limited profile summary and their own 25 most recent applications. Users can also attach PDF, DOC, and DOCX files up to 5MB. The server extracts up to 12,000 characters of text in memory and sends that text to Kilo with each chat request while the document remains attached; uploaded files are not stored by the chat endpoint. Document requests use a smaller database context, the six latest conversation messages, and a 90-second Kilo timeout to limit prompt size and allow longer model responses. These details are sent to Kilo to generate replies. Do not enter sensitive information in chat. Anonymous requests are subject to Kilo's rate limits.
 
 **Backend Setup:**  
-In the first terminal, navigate to the server directory and run `npm install` to install the required backend dependencies. Start the API using `node server.js`. The backend runs on port 3000.
+In the first terminal, run `cd server` and `npm install`, then start the API with `npm start`. The backend runs on port 3000. The start script launches `src/server.js`.
 
 **Frontend Setup:**  
-In the second terminal, navigate to the client directory and run `npm install` to install the required frontend dependencies. Start the application using `npm run dev`. The frontend runs on port 5173.
+In the second terminal, run `cd client` and `npm install`, then start the application with `npm run dev`. The frontend runs on port 5173. The client does not define an `npm start` script.
 
 **Database Setup:**  
-The project uses MongoDB with Mongoose. Create a `.env` file and add the MongoDB connection string as `MONGO_URI`. Ensure that your IP address is authorized in MongoDB Atlas before starting the backend.
+The project uses MongoDB with Mongoose. Create a `.env` file in the repository root and add the MongoDB connection string as `MONGO_URI`. Ensure that your IP address is authorized in MongoDB Atlas before starting the backend. The backend loads this root file whether you start it from the repository root or the `server` directory.
 
 **Authentication Setup:**  
 Add a secure `JWT_SECRET` to the `.env` file. The application uses bcryptjs for password hashing and JSON Web Tokens (JWT) for user authentication. The `.env` file must not be committed to GitHub.

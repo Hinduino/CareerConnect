@@ -102,15 +102,8 @@ function JobDetail({ jobId, onBack }) {
                 <p>{job.requirements}</p>
             </div>
 
-            <button type="button" 
-            disabled 
-            title="Application feature coming in Sprint 3!" 
-            style={{ marginTop: '20px', padding: '10px 20px', cursor: 'not-allowed', opacity: 0.6 }}
-            >Apply Now
-            </button>
-            <button type="button" style={{ marginTop: '20px', padding: '10px 20px' }}>Apply Now</button>
 
-            {/* Conditional Rendering for Submission Confirmation */}
+           {/* Conditional Rendering for Submission Confirmation */}
             {submitStatus === 'success' ? (
                 <div style={{ marginTop: '20px', padding: '15px', background: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '5px' }}>
                     <h4 style={{ color: '#155724', margin: 0 }}>{submitMessage}</h4>

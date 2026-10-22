@@ -1,4 +1,4 @@
-const Application = require("../models/application");
+const Application = require("../models/Application");
 
 // Creates a new job application in the database
 async function createApplication(userId, jobId) {
