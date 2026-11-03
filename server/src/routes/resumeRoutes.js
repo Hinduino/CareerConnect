@@ -1,12 +1,13 @@
 const express = require("express");
 const multer = require("multer");
+const mongoose = require("mongoose");
 const requireAuth = require("../middleware/auth");
 const {
-  findResumeByUser,
-  findResumeMetaByUser,
+  listResumesByUser,
+  findResumeByIdForUser,
   createResume,
-  replaceResume,
-  deleteResumeByUser,
+  replaceResumeById,
+  deleteResumeById,
 } = require("../queries/resumeQueries");
 
 const router = express.Router();
@@ -15,16 +16,14 @@ const router = express.Router();
 // All routes below require a valid JWT (see middleware/auth.js). The user is
 // identified by req.user.id, which comes from the verified token - never
 // from anything the client sends directly - so a user can only ever view,
-// upload, replace, or delete their *own* resume.
+// upload, or delete their *own* resumes.
 //
-// The resume is stored inside that user's document (the embedded `resume`
-// field on User), so every route here reads or updates the user document.
+// Each applicant can save more than one resume (see models/Resume.js) and
+// picks which one to attach when applying for a job.
 // ---------------------------------------------------------------------------
 router.use(requireAuth);
 
 // Keep uploads reasonably small - resumes are text documents, not media.
-// This matters more now that the file lives inside the user document:
-// MongoDB caps a single document at 16MB, and 5MB stays well under that.
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 // Only accept the file types a resume would realistically be in. This is
@@ -39,7 +38,6 @@ const ALLOWED_MIME_TYPES = new Set([
 
 // We use memoryStorage() instead of disk storage because resumes are stored
 // directly in MongoDB (as a Buffer) rather than on the server's filesystem.
-// This keeps everything in one place and avoids managing an uploads/ folder.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE },
@@ -69,37 +67,37 @@ function toResumeFields(file) {
 }
 
 // Shapes what we send back to the client for metadata-only responses.
-// Deliberately leaves out `data` (the raw file bytes) since that's only
-// needed by the /file route. There is no resume `id` anymore: an embedded
-// resume is identified by the user it belongs to.
-function toMetadata(resume, userId) {
+// Deliberately leaves out `data` (the raw file bytes).
+function toMetadata(resume) {
   return {
-    user: userId,
+    id: resume._id,
     originalName: resume.originalName,
     contentType: resume.contentType,
     size: resume.size,
+    createdAt: resume.createdAt,
   };
 }
 
-// GET /api/resumes -> the logged-in user's resume metadata (no binary data)
+// GET /api/resumes -> the logged-in user's saved resumes (no binary data)
 router.get("/", async (req, res, next) => {
   try {
-    const resume = await findResumeMetaByUser(req.user.id);
-    if (!resume) {
-      return res.status(404).json({ error: "No resume found for this user" });
-    }
-    res.json(toMetadata(resume, req.user.id));
+    const resumes = await listResumesByUser(req.user.id);
+    res.json(resumes.map(toMetadata));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/resumes/file -> actually send back the resume bytes.
-router.get("/file", async (req, res, next) => {
+// GET /api/resumes/:id/file -> actually send back one resume's bytes.
+router.get("/:id/file", async (req, res, next) => {
   try {
-    const resume = await findResumeByUser(req.user.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid resume ID" });
+    }
+
+    const resume = await findResumeByIdForUser(req.params.id, req.user.id);
     if (!resume || !resume.data) {
-      return res.status(404).json({ error: "No resume found for this user" });
+      return res.status(404).json({ error: "Resume not found" });
     }
 
     const safeName = encodeURIComponent(sanitizeFilename(resume.originalName));
@@ -116,52 +114,53 @@ router.get("/file", async (req, res, next) => {
   }
 });
 
-// POST /api/resumes -> upload a brand new resume for the logged-in user.
+// POST /api/resumes -> upload a new resume for the logged-in user. Users may
+// have any number of saved resumes.
 router.post("/", upload.single("resume"), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file was uploaded" });
     }
 
-    // createResume only writes when the user has no resume yet, so a null
-    // result means one is already there.
     const resume = await createResume(req.user.id, toResumeFields(req.file));
-    if (!resume) {
-      return res.status(409).json({
-        error: "A resume already exists for this user. Use PUT to replace it.",
-      });
-    }
-
-    res.status(201).json(toMetadata(resume, req.user.id));
+    res.status(201).json(toMetadata(resume));
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/resumes -> swap out the logged-in user's current resume for a new file.
-router.put("/", upload.single("resume"), async (req, res, next) => {
+// PUT /api/resumes/:id -> replace the file for one of the logged-in user's
+// existing resumes, keeping its id. Applications keep a snapshot taken at
+// submission time, so this has no effect on resumes already attached to one.
+router.put("/:id", upload.single("resume"), async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid resume ID" });
+    }
     if (!req.file) {
       return res.status(400).json({ error: "No file was uploaded" });
     }
 
-    const resume = await replaceResume(req.user.id, toResumeFields(req.file));
+    const resume = await replaceResumeById(req.params.id, req.user.id, toResumeFields(req.file));
     if (!resume) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Resume not found" });
     }
-
-    res.status(200).json(toMetadata(resume, req.user.id));
+    res.status(200).json(toMetadata(resume));
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/resumes -> remove the logged-in user's resume entirely.
-router.delete("/", async (req, res, next) => {
+// DELETE /api/resumes/:id -> remove one of the logged-in user's resumes.
+router.delete("/:id", async (req, res, next) => {
   try {
-    const deleted = await deleteResumeByUser(req.user.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid resume ID" });
+    }
+
+    const deleted = await deleteResumeById(req.params.id, req.user.id);
     if (!deleted) {
-      return res.status(404).json({ error: "No resume found for this user" });
+      return res.status(404).json({ error: "Resume not found" });
     }
     res.status(204).send();
   } catch (err) {

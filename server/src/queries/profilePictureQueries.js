@@ -1,8 +1,9 @@
 const User = require("../models/User");
 
 // Every function here works on the `profilePicture` field embedded in a
-// User document, the same way resumeQueries.js works on `resume`. There is
-// no ProfilePicture model and no separate collection.
+// User document. There is no ProfilePicture model and no separate
+// collection (unlike resumes, which live in their own Resume collection
+// since a user can save more than one).
 
 // Metadata fields only, so the image bytes in profilePicture.data are never
 // loaded by accident.

@@ -58,6 +58,16 @@ function sampleJob(overrides = {}) {
     };
 }
 
+function sampleResume(overrides = {}) {
+    return {
+        originalName: 'resume.pdf',
+        contentType: 'application/pdf',
+        size: 4,
+        data: Buffer.from('test'),
+        ...overrides
+    };
+}
+
 describe('Job posting routes', () => {
     let recruiterId;
     let otherRecruiterId;
@@ -268,7 +278,8 @@ describe('Job posting routes', () => {
 
         await Application.create({
             applicant: jobSeekerId,
-            job: job._id
+            job: job._id,
+            resume: sampleResume()
         });
 
         const res = await request(app)
@@ -304,7 +315,8 @@ describe('Job posting routes', () => {
         applicants.map((applicant, index) => ({
             applicant: applicant._id,
             job: job._id,
-            createdAt: dates[index]
+            createdAt: dates[index],
+            resume: sampleResume()
         })).reverse()
     );
 
@@ -326,7 +338,8 @@ describe('Job posting routes', () => {
 
     await Application.create({
         applicant: jobSeekerId,
-        job: job._id
+        job: job._id,
+        resume: sampleResume()
     });
 
     const res = await request(app)

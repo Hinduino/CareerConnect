@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createJob, deleteJob, fetchMyJobs, fetchJobApplications, updateJob } from '../api/jobApi';
+import { fetchApplicationResumeBlobUrl } from '../api/applicationApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
 import JobPostingForm from './JobPostingForm';
 
@@ -67,6 +68,23 @@ function RecruiterDashboard({ onBack }) {
       setApplicationsLoading(false);
     }
   };
+  // Fetch the resume attached to an application and open/download it. Can't
+  // rely on a plain <a href> since the request needs an Authorization header.
+  const handleDownloadResume = async (application) => {
+    try {
+      const blobUrl = await fetchApplicationResumeBlobUrl(token, application._id, { download: true });
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = application.resume?.originalName || 'resume';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (err) {
+      setApplicationsError(err.message);
+    }
+  };
+
   // Delete a job posting after recruiter confirmation.
   const handleDelete = async (job) => {
     if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) {
@@ -188,6 +206,13 @@ function RecruiterDashboard({ onBack }) {
                 <p><strong>Location:</strong> {application.applicant?.location || 'Not provided'}</p>
                 <p><strong>Status:</strong> {application.status}</p>
                 <p><strong>Applied:</strong> {new Date(application.createdAt).toLocaleDateString()}</p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => handleDownloadResume(application)}
+                >
+                  Download Resume
+                </button>
               </div>
             ))}
           </section>

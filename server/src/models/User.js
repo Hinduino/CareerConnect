@@ -1,25 +1,12 @@
 const mongoose = require("mongoose");
 
-// The resume is embedded in the user document instead of living in its own
-// collection, so one user can only ever have one resume and it is removed
-// automatically if the user document is deleted.
+// Resumes live in their own collection (see models/Resume.js) since a user
+// can save more than one and pick which to attach per application.
 //
-// _id: false   -> the resume has no id of its own; it is addressed through
-//                 the user it belongs to.
-// select: false on `data` -> ordinary user queries (login, registration
-//                 checks, profile lookups) do NOT pull the file bytes. Only
-//                 the download route asks for them explicitly.
-const resumeSchema = new mongoose.Schema(
-  {
-    originalName: { type: String, required: true },
-    contentType: { type: String, required: true },
-    size: { type: Number, required: true },
-    data: { type: Buffer, required: true, select: false },
-  },
-  { _id: false }
-);
-
-// Same embedding pattern as the resume above, just for a profile photo.
+// Same embedding pattern is kept for the profile photo: one user has at
+// most one, and select: false on `data` keeps ordinary user queries (login,
+// registration checks, profile lookups) from pulling the file bytes. Only
+// the download route asks for them explicitly.
 const profilePictureSchema = new mongoose.Schema(
   {
     originalName: { type: String, required: true },
@@ -38,9 +25,6 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["job_seeker", "recruiter"], default: "job_seeker" },
     location: { type: String, default: "", trim: true },
     bio: { type: String, default: "", trim: true },
-
-    // Absent (not an empty object) until the user uploads a resume.
-    resume: { type: resumeSchema, default: undefined },
 
     // Absent until the user uploads a profile picture.
     profilePicture: { type: profilePictureSchema, default: undefined },

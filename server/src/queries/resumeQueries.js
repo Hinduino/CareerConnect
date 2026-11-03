@@ -1,90 +1,69 @@
-const User = require("../models/User");
+const Resume = require("../models/Resume");
 
-// Every function here works on the `resume` field embedded in a User
-// document. There is no Resume model and no `resumes` collection anymore.
+// Metadata fields only, listed one by one (rather than selecting a single
+// "resume" path) so the file bytes in `data` are never loaded by accident.
+const RESUME_META = "_id originalName contentType size createdAt";
 
-// Metadata fields only. Listed one by one (rather than selecting "resume")
-// so the file bytes in resume.data are never loaded by accident.
-const RESUME_META = "resume.originalName resume.contentType resume.size";
-
-// A user "has a resume" when the embedded file bytes exist.
-const HAS_RESUME = { "resume.data": { $exists: true } };
-const HAS_NO_RESUME = { "resume.data": { $exists: false } };
-
-function resumeOf(user) {
-  return user && user.resume ? user.resume : null;
+// All of the logged-in user's resumes, most recently uploaded first.
+async function listResumesByUser(userId) {
+  return Resume.find({ user: userId }).select(RESUME_META).sort({ createdAt: -1 });
 }
 
-// Resume metadata without the file bytes. Returns null if there is none.
-async function findResumeMetaByUser(userId) {
-  const user = await User.findById(userId).select(RESUME_META);
-  return resumeOf(user);
+// A single resume's metadata, scoped to its owner. Returns null if it
+// doesn't exist or belongs to someone else.
+async function findResumeMetaById(resumeId, userId) {
+  return Resume.findOne({ _id: resumeId, user: userId }).select(RESUME_META);
 }
 
-// Resume including the file bytes (for the download route).
-// The "+" overrides select: false on resume.data for this one query.
-async function findResumeByUser(userId) {
-  const user = await User.findById(userId).select(
-    "resume.originalName resume.contentType +resume.data"
+// Resume including the file bytes (for the download route), scoped to its
+// owner.
+async function findResumeByIdForUser(resumeId, userId) {
+  return Resume.findOne({ _id: resumeId, user: userId }).select(
+    `${RESUME_META} +data`
   );
-  return resumeOf(user);
 }
 
-// Embeds a new resume in the user document. The filter only matches a user
-// who has no resume yet, so two simultaneous uploads cannot overwrite each
-// other. Returns null if the user already has one (or does not exist).
+// Adds a new resume for the user. Multiple resumes per user are allowed.
 async function createResume(userId, file) {
-  const user = await User.findOneAndUpdate(
-    { _id: userId, ...HAS_NO_RESUME },
-    {
-      $set: {
-        resume: {
-          originalName: file.originalName,
-          contentType: file.contentType,
-          size: file.size,
-          data: file.data,
-        },
-      },
-    },
-    { new: true, runValidators: true }
-  ).select(RESUME_META);
-  return resumeOf(user);
+  const resume = await Resume.create({
+    user: userId,
+    originalName: file.originalName,
+    contentType: file.contentType,
+    size: file.size,
+    data: file.data,
+  });
+  return findResumeMetaById(resume._id, userId);
 }
 
-// Swaps the file in place. If the user has no resume yet, this falls back
-// to creating one. Returns null only if the user does not exist.
-async function replaceResume(userId, file) {
-  const user = await User.findOneAndUpdate(
-    { _id: userId, ...HAS_RESUME },
+// Swaps the file in place for one of the user's existing resumes. Returns
+// null if it does not exist or belongs to someone else.
+async function replaceResumeById(resumeId, userId, file) {
+  await Resume.updateOne(
+    { _id: resumeId, user: userId },
     {
       $set: {
-        "resume.originalName": file.originalName,
-        "resume.contentType": file.contentType,
-        "resume.size": file.size,
-        "resume.data": file.data,
+        originalName: file.originalName,
+        contentType: file.contentType,
+        size: file.size,
+        data: file.data,
       },
-    },
-    { new: true, runValidators: true }
-  ).select(RESUME_META);
-
-  if (user) return resumeOf(user);
-  return createResume(userId, file);
+    }
+  );
+  return findResumeMetaById(resumeId, userId);
 }
 
-// Removes the embedded resume field from the user document.
-// Returns true if a resume was removed, false if there was none.
-async function deleteResumeByUser(userId) {
-  const user = await User.findOneAndUpdate(
-    { _id: userId, ...HAS_RESUME },
-    { $unset: { resume: 1 } }
-  ).select("_id");
-  return Boolean(user);
+// Removes one of the user's resumes. Returns true if a resume was deleted,
+// false if it did not exist or belonged to someone else.
+async function deleteResumeById(resumeId, userId) {
+  const result = await Resume.deleteOne({ _id: resumeId, user: userId });
+  return result.deletedCount > 0;
 }
 
 module.exports = {
-  findResumeByUser,
-  findResumeMetaByUser,
+  listResumesByUser,
+  findResumeMetaById,
+  findResumeByIdForUser,
   createResume,
-  replaceResume,
-  deleteResumeByUser,
+  replaceResumeById,
+  deleteResumeById,
 };

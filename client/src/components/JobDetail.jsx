@@ -1,76 +1,126 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { formatPostedDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
+import { fetchJob } from '../api/jobApi';
+import { fetchResumes } from '../api/resumeApi';
+import { fetchApplicationStatus, submitApplication, cancelApplication } from '../api/applicationApi';
 
 function JobDetail({ jobId, onBack }) {
     const [job, setJob] = useState(null);
     const [error, setError] = useState('');
-    
-    // Application state management
-    const { user, isAuthenticated } = useAuth();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatus, setSubmitStatus] = useState(null); 
-    const [submitMessage, setSubmitMessage] = useState('');
-    
-    useEffect(() => {
-        const fetchJobDetail = async () => {
-            try {
-                const response = await fetch(`http://localhost:3000/api/jobs/${jobId}`);
-                const data = await response.json();
 
-                if (response.ok) {
-                    setJob(data);
-                } else {
-                    setError(data.error || 'Failed to load job details');
-                }
+    const { token, isAuthenticated } = useAuth();
+
+    // Whether the current user already has an application on file for this job.
+    const [applied, setApplied] = useState(false);
+    const [applicationId, setApplicationId] = useState(null);
+    const [statusLoading, setStatusLoading] = useState(false);
+
+    // The applicant's saved resumes, used to populate the resume picker.
+    const [resumes, setResumes] = useState([]);
+    const [selectedResumeId, setSelectedResumeId] = useState('');
+    const [resumesLoading, setResumesLoading] = useState(false);
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
+    const [actionError, setActionError] = useState('');
+
+    useEffect(() => {
+        const loadJob = async () => {
+            try {
+                const data = await fetchJob(jobId);
+                setJob(data);
             } catch (err) {
-            console.error("Submission error:", err); // Add this line
-            setSubmitStatus('error');
-            setSubmitMessage('Network error. Unable to submit application.');
+                setError(err.message || 'Failed to load job details');
             }
         };
 
         if (jobId) {
-            fetchJobDetail();
+            loadJob();
         }
     }, [jobId]);
 
+    useEffect(() => {
+        const loadStatus = async () => {
+            if (!isAuthenticated || !jobId) {
+                setApplied(false);
+                setApplicationId(null);
+                return;
+            }
+            setStatusLoading(true);
+            try {
+                const data = await fetchApplicationStatus(token, jobId);
+                setApplied(data.applied);
+                setApplicationId(data.applicationId);
+            } catch {
+                setApplied(false);
+                setApplicationId(null);
+            } finally {
+                setStatusLoading(false);
+            }
+        };
+        loadStatus();
+    }, [isAuthenticated, token, jobId]);
+
+    useEffect(() => {
+        const loadResumes = async () => {
+            if (!isAuthenticated || applied) {
+                setResumes([]);
+                return;
+            }
+            setResumesLoading(true);
+            try {
+                const data = await fetchResumes(token);
+                setResumes(data);
+                setSelectedResumeId((current) => current || data[0]?.id || '');
+            } catch {
+                setResumes([]);
+            } finally {
+                setResumesLoading(false);
+            }
+        };
+        loadResumes();
+    }, [isAuthenticated, token, applied]);
+
     const handleApply = async () => {
         if (!isAuthenticated) {
-            setSubmitStatus('error');
-            setSubmitMessage('You must be logged in to apply for this job.');
+            setActionError('You must be logged in to apply for this job.');
             return;
         }
-        
+        if (!selectedResumeId) {
+            setActionError('Please select a resume before applying.');
+            return;
+        }
+
         setIsSubmitting(true);
-        setSubmitStatus(null);
-        
+        setActionError('');
+
         try {
-            const response = await fetch('http://localhost:3000/api/applications', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    jobId: jobId, 
-                    applicantId: user.id 
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                setSubmitStatus('success');
-                setSubmitMessage(data.message || 'Application submitted successfully!');
-            } else {
-                setSubmitStatus('error');
-                setSubmitMessage(data.error || 'Failed to submit application.');
-            }
+            const data = await submitApplication(token, jobId, selectedResumeId);
+            setApplied(true);
+            setApplicationId(data.application._id);
         } catch (err) {
-            setSubmitStatus('error');
-            console.error("Fetch error:", err);
-            setError('Failed to connect to the server.');
-            setSubmitMessage('Network error. Unable to submit application.');
+            setActionError(err.message || 'Failed to submit application.');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!applicationId) return;
+        if (!window.confirm('Cancel this application?')) return;
+
+        setIsCancelling(true);
+        setActionError('');
+
+        try {
+            await cancelApplication(token, applicationId);
+            setApplied(false);
+            setApplicationId(null);
+        } catch (err) {
+            setActionError(err.message || 'Failed to cancel application.');
+        } finally {
+            setIsCancelling(false);
         }
     };
 
@@ -102,32 +152,61 @@ function JobDetail({ jobId, onBack }) {
                 <p>{job.requirements}</p>
             </div>
 
+            <div style={{ marginTop: '20px' }}>
+                {actionError && (
+                    <p style={{ color: 'red', marginBottom: '10px' }}>{actionError}</p>
+                )}
 
-           {/* Conditional Rendering for Submission Confirmation */}
-            {submitStatus === 'success' ? (
-                <div style={{ marginTop: '20px', padding: '15px', background: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '5px' }}>
-                    <h4 style={{ color: '#155724', margin: 0 }}>{submitMessage}</h4>
-                    <p style={{ color: '#155724', marginTop: '5px', marginBottom: 0 }}>Your application status is now being tracked.</p>
-                </div>
-            ) : (
-                <div style={{ marginTop: '20px' }}>
-                    {submitStatus === 'error' && (
-                        <p style={{ color: 'red', marginBottom: '10px' }}>{submitMessage}</p>
-                    )}
-                    <button 
-                        type="button" 
-                        onClick={handleApply}
-                        disabled={isSubmitting}
-                        style={{ 
-                            padding: '10px 20px', 
-                            cursor: isSubmitting ? 'wait' : 'pointer',
-                            opacity: isSubmitting ? 0.7 : 1
-                        }}
+                {!isAuthenticated ? (
+                    <p className="resume-hint">Log in as a job seeker to apply for this job.</p>
+                ) : statusLoading ? (
+                    <p>Checking application status...</p>
+                ) : applied ? (
+                    <button
+                        type="button"
+                        onClick={handleCancel}
+                        disabled={isCancelling}
+                        className="btn-danger"
                     >
-                        {isSubmitting ? 'Submitting...' : 'Apply Now'}
+                        {isCancelling ? 'Cancelling...' : 'Cancel Application'}
                     </button>
-                </div>
-            )}
+                ) : resumesLoading ? (
+                    <p>Loading your resumes...</p>
+                ) : resumes.length === 0 ? (
+                    <p className="resume-hint">
+                        Upload a resume in your profile before applying for this job.
+                    </p>
+                ) : (
+                    <div>
+                        <label htmlFor="resume-select" style={{ display: 'block', marginBottom: '8px' }}>
+                            Select a resume to apply with
+                        </label>
+                        <select
+                            id="resume-select"
+                            value={selectedResumeId}
+                            onChange={(e) => setSelectedResumeId(e.target.value)}
+                            style={{ marginBottom: '12px', padding: '6px' }}
+                        >
+                            {resumes.map((resume) => (
+                                <option key={resume.id} value={resume.id}>
+                                    {resume.originalName}
+                                </option>
+                            ))}
+                        </select>
+                        <div>
+                            <button
+                                type="button"
+                                onClick={handleApply}
+                                disabled={isSubmitting}
+                                className="btn-primary"
+                                style={{ cursor: isSubmitting ? 'wait' : 'pointer' }}
+                            >
+                                {isSubmitting ? 'Submitting...' : 'Apply Now'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </section>
     );
 }
