@@ -22,7 +22,7 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
 
         const applications = await Application.find({ job: job._id })
             .sort({ createdAt: 1, _id: 1 })
-            .populate('applicant', 'name email role');
+            .populate('applicant', 'name email role location');
         res.status(200).json(applications);
     } catch (error) {
         console.error(error);
