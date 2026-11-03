@@ -56,7 +56,6 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
 
         <ul className="navbar-links">
           <li><button type="button" className="btn-secondary"onClick={onJobsClick}>Browse Jobs</button></li>
-          <li><button type="button" className="btn-secondary">Features</button></li>
         </ul>
 
         {isAuthenticated ? (
