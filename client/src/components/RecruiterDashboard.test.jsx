@@ -6,11 +6,16 @@ jest.mock('../api/jobApi', () => ({
   createJob: jest.fn(),
   updateJob: jest.fn(),
   deleteJob: jest.fn(),
+  fetchJobApplications: jest.fn(),
+}));
+jest.mock('../api/applicationApi', () => ({
+  fetchApplicationResumeBlobUrl: jest.fn(),
 }));
 
 const RecruiterDashboard = require('./RecruiterDashboard').default;
 const { useAuth } = require('../context/AuthContext');
-const { fetchMyJobs, createJob, updateJob, deleteJob} = require('../api/jobApi');
+const { fetchMyJobs, createJob, updateJob, deleteJob, fetchJobApplications } = require('../api/jobApi');
+const { fetchApplicationResumeBlobUrl } = require('../api/applicationApi');
 
 const sampleJob = {
   _id: 'job-1',
@@ -112,5 +117,33 @@ it('does not delete a posting when confirmation is cancelled', async () => {
 
   expect(deleteJob).not.toHaveBeenCalled();
   expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+  });
+
+  it('lists applications for a posting and downloads an attached resume', async () => {
+    const sampleApplication = {
+      _id: 'app-1',
+      status: 'Applied',
+      createdAt: new Date().toISOString(),
+      applicant: { name: 'Jane Doe', email: 'jane@example.com', location: 'Montreal' },
+      resume: { originalName: 'jane-resume.pdf' },
+    };
+    fetchJobApplications.mockResolvedValue([sampleApplication]);
+    fetchApplicationResumeBlobUrl.mockResolvedValue('blob:resume');
+    URL.createObjectURL = jest.fn();
+    URL.revokeObjectURL = jest.fn();
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+
+    expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
+    expect(fetchJobApplications).toHaveBeenCalledWith('token', 'job-1');
+
+    fireEvent.click(screen.getByText('Download Resume'));
+
+    await waitFor(() =>
+      expect(fetchApplicationResumeBlobUrl).toHaveBeenCalledWith('token', 'app-1', { download: true })
+    );
   });
 });

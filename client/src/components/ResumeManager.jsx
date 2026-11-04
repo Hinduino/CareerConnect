@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  fetchResumeMetadata,
+  fetchResumes,
   fetchResumeBlobUrl,
   uploadResume,
   replaceResume,
@@ -19,48 +19,52 @@ function formatFileSize(bytes) {
 
 function ResumeManager() {
   const { token, isAuthenticated } = useAuth();
-  const [resume, setResume] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showOthers, setShowOthers] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
+  // null while uploading a new resume, otherwise the id of the resume being replaced.
+  const replacingIdRef = useRef(null);
 
-  
+  const [mostRecent, ...otherResumes] = resumes;
+  const mostRecentId = mostRecent?.id;
 
   useEffect(() => {
-    const loadResume = async () => {
-    if (!token) {
-      setResume(null);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchResumeMetadata(token);
-      setResume(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-    loadResume();
+    const loadResumes = async () => {
+      if (!token) {
+        setResumes([]);
+        return;
+      }
+      setLoading(true);
+      setError('');
+      try {
+        const data = await fetchResumes(token);
+        setResumes(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadResumes();
   }, [token]);
 
-  // Whenever we have a resume on file, fetch its bytes once and keep a blob
-  // URL around so it can be rendered inline (an <iframe> for PDFs) instead
-  // of only being reachable through the View/Download buttons.
+  // Whenever the most recent resume changes, fetch its bytes once and keep a
+  // blob URL around so it can be rendered inline (an <iframe> for PDFs)
+  // instead of only being reachable through the View/Download buttons.
   useEffect(() => {
     let activeUrl = null;
     let cancelled = false;
 
     const loadPreview = async () => {
-      if (!token || !resume) {
+      if (!token || !mostRecentId) {
         setPreviewUrl(null);
         return;
       }
       try {
-        const url = await fetchResumeBlobUrl(token, { download: false });
+        const url = await fetchResumeBlobUrl(token, mostRecentId, { download: false });
         activeUrl = url;
         if (!cancelled) setPreviewUrl(url);
       } catch {
@@ -74,7 +78,7 @@ function ResumeManager() {
       cancelled = true;
       if (activeUrl) URL.revokeObjectURL(activeUrl);
     };
-  }, [token, resume]);
+  }, [token, mostRecentId]);
 
   const validateFile = (file) => {
     const extension = file.name
@@ -89,8 +93,15 @@ function ResumeManager() {
     return null;
   };
 
+  const openFilePicker = (resumeId = null) => {
+    replacingIdRef.current = resumeId;
+    fileInputRef.current?.click();
+  };
+
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
+    const replacingId = replacingIdRef.current;
+    replacingIdRef.current = null;
     event.target.value = ''; // allow re-selecting the same file later
     if (!file || !token) return;
 
@@ -103,10 +114,13 @@ function ResumeManager() {
     setLoading(true);
     setError('');
     try {
-      const data = resume
-        ? await replaceResume(token, file)
-        : await uploadResume(token, file);
-      setResume(data);
+      if (replacingId) {
+        const updated = await replaceResume(token, replacingId, file);
+        setResumes((current) => current.map((r) => (r.id === replacingId ? updated : r)));
+      } else {
+        const created = await uploadResume(token, file);
+        setResumes((current) => [created, ...current]);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -114,34 +128,31 @@ function ResumeManager() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!token || !resume) return;
-    if (!window.confirm('Delete your uploaded resume?')) return;
+  const handleDelete = async (resume) => {
+    if (!token) return;
+    if (!window.confirm(`Delete "${resume.originalName}"?`)) return;
 
-    setLoading(true);
     setError('');
     try {
-      await deleteResume(token);
-      setResume(null);
+      await deleteResume(token, resume.id);
+      setResumes((current) => current.filter((item) => item.id !== resume.id));
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
   // View/Download can't rely on a plain <a href> since the request needs an
   // Authorization header. Instead we fetch the file ourselves and open the
   // resulting blob URL, which behaves the same way from the user's POV.
-  const handleViewOrDownload = async (download) => {
+  const handleViewOrDownload = async (resume, download) => {
     if (!token) return;
     setError('');
     try {
-      const blobUrl = await fetchResumeBlobUrl(token, { download });
+      const blobUrl = await fetchResumeBlobUrl(token, resume.id, { download });
       const link = document.createElement('a');
       link.href = blobUrl;
       if (download) {
-        link.download = resume?.originalName || 'resume';
+        link.download = resume.originalName || 'resume';
       } else {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
@@ -156,54 +167,60 @@ function ResumeManager() {
     }
   };
 
+  const renderResumeCard = (resume) => (
+    <div className="resume-card" key={resume.id}>
+      <div>
+        <strong>{resume.originalName}</strong>
+        <div className="resume-meta">{formatFileSize(resume.size)}</div>
+      </div>
+      <div className="resume-actions">
+        <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(resume, false)}>
+          View
+        </button>
+        <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(resume, true)}>
+          Download
+        </button>
+        <button type="button" className="btn-secondary btn-small" onClick={() => openFilePicker(resume.id)}>
+          Replace
+        </button>
+        <button type="button" className="btn-danger btn-small" onClick={() => handleDelete(resume)}>
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <section className="resume-manager-section" id="resume">
       <h3>My Resume</h3>
 
       {!isAuthenticated && (
-        <p className="resume-hint">Log in to upload and manage your resume.</p>
+        <p className="resume-hint">Log in to upload and manage your resumes.</p>
       )}
 
       {error && <p className="resume-error">{error}</p>}
 
       {isAuthenticated && loading && <p>Loading...</p>}
 
-      {isAuthenticated && !loading && resume && (
+      {isAuthenticated && !loading && resumes.length === 0 && !error && (
+        <p className="resume-hint">You haven&apos;t saved a resume yet.</p>
+      )}
+
+      {isAuthenticated && !loading && mostRecent && (
         <>
-          <div className="resume-card">
-            <div>
-              <strong>{resume.originalName}</strong>
-              <div className="resume-meta">
-                {formatFileSize(resume.size)}
-              </div>
-            </div>
-            <div className="resume-actions">
-              <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(false)}>
-                View
-              </button>
-              <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(true)}>
-                Download
-              </button>
-              <button type="button" className="btn-secondary btn-small" onClick={() => fileInputRef.current?.click()}>
-                Replace
-              </button>
-              <button type="button" className="btn-danger btn-small" onClick={handleDelete}>
-                Delete
-              </button>
-            </div>
-          </div>
+          {renderResumeCard(mostRecent)}
 
           <div className="resume-preview">
-            {resume.contentType === 'application/pdf' && previewUrl ? (
+            {mostRecent.contentType === 'application/pdf' && previewUrl ? (
               <iframe
                 src={previewUrl}
-                title={`Preview of ${resume.originalName}`}
+                title={`Preview of ${mostRecent.originalName}`}
                 className="resume-preview-frame"
               />
             ) : (
               <div className="resume-preview-placeholder">
                 <span className="resume-preview-icon" aria-hidden="true">📄</span>
-                <p className="resume-preview-name">{resume.originalName}</p>
+                <p className="resume-preview-name">{mostRecent.originalName}</p>
                 <p className="resume-meta">
                   Preview isn&apos;t available for this file type. Use View or Download above.
                 </p>
@@ -213,8 +230,23 @@ function ResumeManager() {
         </>
       )}
 
-      {isAuthenticated && !loading && !resume && !error && (
-        <button type="button" className="btn-primary" onClick={() => fileInputRef.current?.click()}>
+      {isAuthenticated && !loading && otherResumes.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="btn-secondary btn-small"
+            onClick={() => setShowOthers((current) => !current)}
+          >
+            {showOthers
+              ? 'Hide other resumes'
+              : `Show other resumes (${otherResumes.length})`}
+          </button>
+          {showOthers && otherResumes.map(renderResumeCard)}
+        </>
+      )}
+
+      {isAuthenticated && (
+        <button type="button" className="btn-primary" onClick={() => openFilePicker()}>
           Upload Resume
         </button>
       )}

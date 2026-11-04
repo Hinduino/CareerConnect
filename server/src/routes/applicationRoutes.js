@@ -3,9 +3,15 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
-const { createApplication } = require('../queries/applicationqueries');
+const { createApplication, cancelApplication, getApplicationStatus } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
+
+// Filenames come straight from the applicant's upload, so we can't fully
+// trust them when echoing them back in Content-Disposition.
+function sanitizeFilename(name) {
+    return name.replace(/[\r\n"]/g, '').trim() || 'resume';
+}
 
 // GET /api/applications/jobs/:jobId - Recruiters view applications for their posting
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
@@ -30,29 +36,112 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
     }
 });
 
-// POST /api/applications - Submit a new job application
-router.post('/', async (req, res) => {
+// GET /api/applications/status/:jobId - Does the current user already have an application for this job?
+router.get('/status/:jobId', requireAuth, async (req, res) => {
     try {
-        const { jobId, applicantId } = req.body;
-        // Note: If using auth middleware, replace applicantId with req.user.id
-
-        if (!jobId || !applicantId) {
-            return res.status(400).json({ error: 'Job ID and Applicant ID are required.' });
+        if (!mongoose.isValidObjectId(req.params.jobId)) {
+            return res.status(400).json({ error: 'Invalid job ID' });
         }
 
-        const application = await createApplication(applicantId, jobId);
+        const status = await getApplicationStatus(req.user.id, req.params.jobId);
+        res.status(200).json(status);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error checking application status' });
+    }
+});
 
-        // Provide confirmation that the application has been submitted
+// GET /api/applications/:applicationId/resume - Download the resume attached to an application.
+// Only the applicant who submitted it or the recruiter who owns the job may access it.
+router.get('/:applicationId/resume', requireAuth, async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.applicationId)) {
+            return res.status(400).json({ error: 'Invalid application ID' });
+        }
+
+        const application = await Application.findById(req.params.applicationId).select('+resume.data');
+        if (!application) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+
+        const isApplicant = application.applicant.toString() === req.user.id;
+        let isOwningRecruiter = false;
+        if (!isApplicant) {
+            const job = await JobPosting.findById(application.job);
+            isOwningRecruiter = Boolean(job && job.postedBy.toString() === req.user.id);
+        }
+
+        if (!isApplicant && !isOwningRecruiter) {
+            return res.status(403).json({ error: 'You do not have permission to access this resume' });
+        }
+
+        const { resume } = application;
+        const safeName = encodeURIComponent(sanitizeFilename(resume.originalName));
+        const disposition = req.query.download ? 'attachment' : 'inline';
+
+        res.set('Content-Type', resume.contentType);
+        res.set(
+            'Content-Disposition',
+            `${disposition}; filename="${safeName}"; filename*=UTF-8''${safeName}`
+        );
+        res.send(resume.data);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error fetching resume' });
+    }
+});
+
+// POST /api/applications - Submit a new job application
+router.post('/', requireAuth, async (req, res) => {
+    try {
+        const { jobId, resumeId } = req.body;
+
+        if (!jobId || !resumeId) {
+            return res.status(400).json({ error: 'Job ID and resume are required.' });
+        }
+
+        const application = await createApplication(req.user.id, jobId, resumeId);
+
         res.status(201).json({
             message: 'Application submitted successfully!',
-            application
+            application: {
+                _id: application._id,
+                job: application.job,
+                applicant: application.applicant,
+                status: application.status,
+                createdAt: application.createdAt,
+            },
         });
     } catch (error) {
         console.error('Application Submission Error:', error);
-        if (error.message === "You have already applied for this job.") {
-             return res.status(409).json({ error: error.message });
+        if (error.message === 'You have already applied for this job.') {
+            return res.status(409).json({ error: error.message });
+        }
+        if (
+            error.message === 'Please select a resume to apply with.'
+            || error.message === 'Selected resume could not be found.'
+        ) {
+            return res.status(400).json({ error: error.message });
         }
         res.status(500).json({ error: 'Server error submitting application.' });
+    }
+});
+
+// DELETE /api/applications/:applicationId - Cancel a previously submitted application
+router.delete('/:applicationId', requireAuth, async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.applicationId)) {
+            return res.status(400).json({ error: 'Invalid application ID' });
+        }
+
+        await cancelApplication(req.user.id, req.params.applicationId);
+        res.status(200).json({ message: 'Application cancelled successfully.' });
+    } catch (error) {
+        if (error.message === 'Application not found.') {
+            return res.status(404).json({ error: error.message });
+        }
+        console.error(error);
+        res.status(500).json({ error: 'Server error cancelling application.' });
     }
 });
 
