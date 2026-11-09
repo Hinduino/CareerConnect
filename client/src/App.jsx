@@ -9,7 +9,8 @@ import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
 import RecruiterDashboard from './components/RecruiterDashboard'
-import MyApplications from './components/MyApplications'
+import RecruiterPostings from './components/RecruiterPostings'
+import ApplicationHistory from './components/ApplicationHistory'
 import Chatbot from './components/Chatbot'
 
 function App() {
@@ -64,9 +65,9 @@ function App() {
           onSave={handleSaveProfile}
           onBack={() => setCurrentView('profile')}
         />
-      ) : (currentView === 'recruiter-dashboard' ||
-            currentView === 'recruiter-postings' ||
-            currentView === 'recruiter-applications') &&
+      ) : currentView === 'recruiter-postings' && isAuthenticated && user?.role === 'recruiter' ? (
+        <RecruiterPostings />
+      ) : (currentView === 'recruiter-dashboard' || currentView === 'recruiter-applications') &&
           isAuthenticated &&
           user?.role === 'recruiter' ? (
         <RecruiterDashboard
@@ -74,7 +75,7 @@ function App() {
           onBack={() => setCurrentView('home')}
         />
       ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
-        <MyApplications />
+        <ApplicationHistory />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {

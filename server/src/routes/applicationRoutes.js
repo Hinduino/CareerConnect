@@ -151,7 +151,15 @@ router.post('/', requireAuth, async (req, res) => {
         if (!jobId || !resumeId) {
             return res.status(400).json({ error: 'Job ID and resume are required.' });
         }
-
+        // SCRUM-310: Check if the posting is archived
+        const job = await JobPosting.findById(jobId);
+        if (!job) {
+        return res.status(404).json({ error: 'Job posting not found.' });
+        }
+        if (job.isArchived) {
+        return res.status(400).json({ error: 'This job posting is archived and no longer accepts applications.' });
+        }
+        
         const application = await createApplication(req.user.id, jobId, resumeId);
 
         res.status(201).json({
