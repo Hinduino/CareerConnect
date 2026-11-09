@@ -7,7 +7,6 @@ const {
   createApplication,
   cancelApplication,
   declineJobOffer,
-  getApplicationHistoryByUser,
   getApplicationStatus,
   getMyApplications,
   updateApplicationStatus,

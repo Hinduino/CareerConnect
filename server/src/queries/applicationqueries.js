@@ -1,5 +1,4 @@
 const Application = require("../models/Application");
-const JobPosting = require('../models/JobPosting');
 const { findResumeByIdForUser } = require("./resumeQueries");
 
 // Creates a new job application in the database, attaching a snapshot of
