@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, cancelApplication, declineJobOffer } from '../api/applicationApi';
 
@@ -21,32 +21,46 @@ function ApplicationHistory() {
   const [error, setError] = useState('');
   const [selectedApp, setSelectedApp] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const authToken = token || localStorage.getItem('token');
 
-  const loadApplications = async () => {
-    if (!authToken) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await fetchMyApplications(authToken);
-      setApplications(data || []);
-    } catch (err) {
-      console.error('Error fetching applications:', err);
-      setError(err.message || 'Unable to load applications.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Trigger reload on mutation without calling setState directly inside the effect
+  const refreshList = () => setReloadKey((prev) => prev + 1);
 
   useEffect(() => {
-    loadApplications();
-  }, [user, token]);
+    let isSubscribed = true;
+
+    async function loadData() {
+      if (!authToken) {
+        if (isSubscribed) setLoading(false);
+        return;
+      }
+
+      try {
+        const data = await fetchMyApplications(authToken);
+        if (isSubscribed) {
+          setApplications(data || []);
+          setError('');
+        }
+      } catch (err) {
+        if (isSubscribed) {
+          console.error('Error fetching applications:', err);
+          setError(err.message || 'Unable to load applications.');
+        }
+      } finally {
+        if (isSubscribed) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [authToken, user, reloadKey]);
 
   const handleDeclineOffer = async (e, applicationId) => {
     e.stopPropagation();
@@ -55,7 +69,7 @@ function ApplicationHistory() {
     setActionLoading(true);
     try {
       await declineJobOffer(authToken, applicationId);
-      await loadApplications();
+      refreshList();
       if (selectedApp && selectedApp._id === applicationId) setSelectedApp(null);
     } catch (err) {
       alert(err.message || 'Failed to decline offer');
@@ -71,7 +85,7 @@ function ApplicationHistory() {
     setActionLoading(true);
     try {
       await cancelApplication(authToken, applicationId);
-      await loadApplications();
+      refreshList();
       if (selectedApp && selectedApp._id === applicationId) setSelectedApp(null);
     } catch (err) {
       alert(err.message || 'Failed to cancel application');
@@ -104,7 +118,7 @@ function ApplicationHistory() {
           }}
         >
           <h3>No applications found</h3>
-          <p style={{ marginTop: '8px' }}>You haven't submitted any job applications yet.</p>
+          <p style={{ marginTop: '8px' }}>You haven&apos;t submitted any job applications yet.</p>
         </div>
       )}
 
@@ -114,7 +128,7 @@ function ApplicationHistory() {
             <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
               <tr>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Job Title</th>
-                <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Company & Description</th>
+                <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Company &amp; Description</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Application Date</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Status</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569', textAlign: 'right' }}>Actions</th>
