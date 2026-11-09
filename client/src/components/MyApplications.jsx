@@ -93,9 +93,9 @@ function MyApplications() {
           ) : error ? (
             <p role="alert">Error: {error}</p>
           ) : applications.length === 0 ? (
-            <p>You haven't applied to any jobs yet.</p>
+            <p>You haven&apos;t applied to any jobs yet.</p>
           ) : filteredApplications.length === 0 ? (
-  <p>No applications found with the "{activeStatus}" status.</p>
+  <p>No applications found with the &quot;{activeStatus}&quot; status.</p>
 ) : (
   <div className="applications-table-wrapper">
     <table className="applications-table">
