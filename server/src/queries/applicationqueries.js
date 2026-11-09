@@ -58,8 +58,49 @@ async function getApplicationStatus(userId, jobId) {
   };
 }
 
+// Retrieve all applications submitted by the logged-in job seeker.
+async function getMyApplications(userId) {
+  return Application.find({ applicant: userId })
+    .select("_id job status createdAt updatedAt")
+    .populate("job", "title company location category")
+    .sort({ createdAt: -1 });
+}
+// Update an application status only if the recruiter owns the job.
+async function updateApplicationStatus(recruiterId, applicationId, status) {
+  const allowedStatuses = [
+    "Applied",
+    "Under Review",
+    "Interview",
+    "Offered",
+    "Rejected",
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    throw new Error("Invalid application status.");
+  }
+
+  const application = await Application.findById(applicationId);
+
+  if (!application) {
+    throw new Error("Application not found.");
+  }
+
+  const JobPosting = require("../models/JobPosting");
+  const job = await JobPosting.findById(application.job);
+
+  if (!job || job.postedBy.toString() !== recruiterId) {
+    throw new Error("Not authorized to update this application.");
+  }
+
+  application.status = status;
+  await application.save();
+
+  return application;
+}
 module.exports = {
   createApplication,
   cancelApplication,
   getApplicationStatus,
+  getMyApplications,
+  updateApplicationStatus,
 };

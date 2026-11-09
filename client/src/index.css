@@ -4,7 +4,11 @@
 
 body {
   margin: 0;
-  font-family: sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #20213a;
+  background-color: #faf8ff;
 }
 
 /* App Container */
@@ -693,5 +697,662 @@ body {
     width: 100vw;
     height: 100vh;
     height: 100dvh;
+  }
+}
+
+/* SCRUM-276: Job Seeker Applications UI */
+:root {
+  --cc-primary: #5630b4;
+  --cc-primary-hover: #452394;
+  --cc-primary-light: #ede7fa;
+
+  --cc-background: #faf8ff;
+  --cc-surface: #ffffff;
+
+  --cc-text: #20213a;
+  --cc-muted: #625d76;
+  --cc-border: #e5def1;
+}
+
+.applications-page {
+  flex: 1;
+  background: var(--cc-background);
+  padding: 48px 32px;
+}
+
+.applications-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.applications-header {
+  margin-bottom: 32px;
+}
+
+.applications-header h1 {
+  color: var(--cc-text);
+  font-size: 32px;
+  margin: 0 0 12px;
+}
+
+.applications-header p {
+  color: var(--cc-muted);
+  margin: 0;
+}
+
+.applications-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.status-filter {
+  padding: 10px 20px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface);
+  color: var(--cc-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-filter:hover {
+  border-color: var(--cc-primary);
+  color: var(--cc-primary);
+}
+
+.status-filter.active {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+  color: white;
+}
+
+.applications-content {
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.applications-content h2 {
+  margin-top: 0;
+  color: var(--cc-text);
+}
+
+.applications-content p {
+  color: var(--cc-muted);
+}
+
+@media (max-width: 600px) {
+  .applications-page {
+    padding: 24px 16px;
+  }
+
+  .applications-header h1 {
+    font-size: 26px;
+  }
+}
+/* SCRUM-276: Applications Table */
+
+.applications-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.applications-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.applications-table th {
+  padding: 18px 20px;
+  background: #f3effb;
+  color: #453568;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.applications-table td {
+  padding: 20px;
+  border-bottom: 1px solid #e5def1;
+  color: #20213a;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.applications-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.applications-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.application-status {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.application-action-placeholder {
+  color: #94a3b8;
+}
+/* Application Overview */
+.applications-overview {
+  margin-bottom: 28px;
+}
+
+.applications-overview h2 {
+  margin-bottom: 16px;
+  font-size: 20px;
+  color: #111827;
+}
+
+.applications-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.applications-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.applications-stat-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.applications-stat-value {
+  font-size: 30px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+@media (max-width: 768px) {
+  .applications-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .applications-stats {
+    grid-template-columns: 1fr;
+  }
+}
+/* CareerConnect purple application filters */
+.applications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 28px 0;
+}
+
+.status-filter {
+  padding: 12px 20px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface);
+  color: var(--cc-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.status-filter:hover {
+  background: var(--cc-primary-light);
+  border-color: var(--cc-primary);
+}
+
+.status-filter.active {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+  color: #ffffff;
+}
+/* SCRUM-276: Recruiter Dashboard Layout */
+.recruiter-dashboard {
+  background: var(--cc-background);
+  padding: 48px 32px;
+}
+
+.recruiter-dashboard .profile-container {
+  max-width: 1200px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 36px;
+  border: 1px solid var(--cc-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(86, 48, 180, 0.06);
+}
+
+@media (max-width: 600px) {
+  .recruiter-dashboard {
+    padding: 24px 16px;
+  }
+
+  .recruiter-dashboard .profile-container {
+    padding: 20px;
+  }
+}
+/* SCRUM-276: Recruiter Applications Table */
+
+.recruiter-applications-table {
+  min-width: 900px;
+}
+
+.recruiter-applications-table td {
+  vertical-align: middle;
+}
+
+.recruiter-applications-table .btn-secondary {
+  padding: 10px 16px;
+  border: 1px solid var(--cc-primary);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--cc-primary);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recruiter-applications-table .btn-secondary:hover {
+  background: var(--cc-primary-light);
+}
+
+.recruiter-status-select {
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: #f5f0ff;
+  color: var(--cc-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recruiter-status-select:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
+/* SCRUM-276: Recruiter Dashboard Typography */
+
+.recruiter-dashboard .profile-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--cc-text);
+  letter-spacing: -0.5px;
+}
+
+.recruiter-dashboard h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--cc-text);
+  margin: 0 0 24px;
+}
+
+.recruiter-dashboard .profile-header {
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--cc-border);
+}
+
+.recruiter-dashboard .job-card {
+  border-color: var(--cc-border);
+  border-radius: 12px;
+  background: var(--cc-surface);
+}
+/* SCRUM-276: CareerConnect Sidebar */
+
+.cc-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 32px 18px;
+  background: #ffffff;
+  border-right: 1px solid var(--cc-border);
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.cc-sidebar-brand {
+  border: none;
+  background: transparent;
+  color: var(--cc-primary);
+  font-size: 24px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cc-sidebar-role {
+  margin: 12px 0 36px;
+  color: var(--cc-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cc-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cc-sidebar-link {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cc-text);
+  font-size: 16px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cc-sidebar-link:hover {
+  background: var(--cc-primary-light);
+  color: var(--cc-primary);
+}
+
+.cc-sidebar-link.active {
+  background: var(--cc-primary);
+  color: #ffffff;
+}
+/* SCRUM-276: Authenticated application layout */
+
+.cc-authenticated {
+  padding-left: 250px;
+  min-width: 0;
+}
+
+.cc-authenticated > .navbar-section,
+.cc-authenticated > .applications-page,
+.cc-authenticated > .profile-page,
+.cc-authenticated > .main-content-section,
+.cc-authenticated > .hero-section,
+.cc-authenticated > .resume-manager-section,
+.cc-authenticated > .footer-section {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .cc-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--cc-border);
+  }
+
+  .cc-authenticated {
+    padding-left: 0;
+  }
+}
+/* SCRUM-276: Authenticated Top Navigation */
+
+.cc-authenticated > .navbar-section {
+  background: #ffffff;
+  border-bottom: 1px solid var(--cc-border);
+  padding: 16px 32px;
+}
+
+.cc-authenticated .navbar-container {
+  min-height: 48px;
+}
+
+.cc-authenticated .navbar-home {
+  color: var(--cc-primary);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.cc-authenticated .navbar-actions {
+  align-items: center;
+  gap: 20px;
+}
+
+.cc-authenticated .navbar-actions span {
+  color: var(--cc-muted);
+  font-size: 15px;
+}
+
+.cc-authenticated .navbar-actions .btn-primary {
+  background: var(--cc-primary);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+}
+
+.cc-authenticated .navbar-actions .btn-primary:hover {
+  background: var(--cc-primary-hover);
+}
+/* SCRUM-276: Application Status Badges */
+
+.application-status {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.application-status.status-applied {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.application-status.status-under-review {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.application-status.status-interview {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.application-status.status-offered {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.application-status.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+/* SCRUM-276: Compact Application Filters */
+
+.applications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 28px 0 32px;
+}
+
+.applications-filters .status-filter {
+  padding: 12px 22px;
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--cc-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.applications-filters .status-filter:hover {
+  background: var(--cc-primary-light);
+  border-color: var(--cc-primary);
+}
+
+.applications-filters .status-filter.active {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+  color: #ffffff;
+}
+/* SCRUM-276: Find Jobs Page */
+
+.cc-authenticated .job-list-page,
+.cc-authenticated .jobs-page {
+  width: 100%;
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  box-sizing: border-box;
+}
+
+.cc-authenticated .job-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.cc-authenticated .job-card {
+  background: #ffffff;
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 3px 12px rgba(32, 33, 58, 0.04);
+}
+/* SCRUM-276: Job Search Form */
+
+.cc-authenticated .job-listing-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px !important;
+  box-sizing: border-box;
+}
+
+.cc-authenticated .job-listing-container > h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--cc-text);
+  margin-bottom: 24px;
+}
+
+.cc-authenticated .job-listing-container > form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px !important;
+  margin-bottom: 30px !important;
+}
+
+.cc-authenticated .job-listing-container > form input,
+.cc-authenticated .job-listing-container > form select {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: white;
+  color: var(--cc-text);
+  font-size: 15px;
+}
+
+.cc-authenticated .job-listing-container > form button {
+  padding: 12px 26px;
+  border: none;
+  border-radius: 10px;
+  background: var(--cc-primary);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cc-authenticated .job-listing-container > form button:hover {
+  background: var(--cc-primary-hover);
+}
+/* SCRUM-276: Recruiter Dashboard Buttons */
+
+.recruiter-dashboard .btn-primary {
+  background: var(--cc-primary);
+  color: #ffffff;
+  border: 1px solid var(--cc-primary);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recruiter-dashboard .btn-secondary {
+  background: #ffffff;
+  color: var(--cc-primary);
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recruiter-dashboard .btn-secondary:hover {
+  background: var(--cc-primary-light);
+  border-color: var(--cc-primary);
+}
+/* Recruiter Applications — Search and Filters */
+
+.recruiter-applications-overview {
+  width: 100%;
+}
+
+.recruiter-applications-overview h2 {
+  color: var(--cc-text);
+  font-size: 26px;
+  margin-bottom: 8px;
+}
+
+.recruiter-application-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 24px 0;
+}
+
+.recruiter-application-filters input,
+.recruiter-application-filters select {
+  padding: 12px 16px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: white;
+  color: var(--cc-text);
+  font-size: 15px;
+}
+
+.recruiter-application-filters input {
+  flex: 1 1 300px;
+}
+
+.recruiter-application-filters select {
+  flex: 0 1 200px;
+}
+
+@media (max-width: 768px) {
+  .recruiter-application-filters input,
+  .recruiter-application-filters select {
+    flex: 1 1 100%;
   }
 }
