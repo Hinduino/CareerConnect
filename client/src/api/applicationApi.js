@@ -103,3 +103,21 @@ export async function updateApplicationStatus(token, applicationId, status) {
 
   return data;
 }
+// Candidate declines an extended job offer (SCRUM-309)
+export async function declineJobOffer(token, applicationId) {
+  const response = await fetch(`${API_BASE}/applications/${applicationId}/decline-offer`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(token),
+    },
+  });
+
+  const data = await parseJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to decline offer.");
+  }
+
+  return data;
+}
