@@ -35,25 +35,19 @@ async function createApplication(userId, jobId, resumeId) {
 }
 
 //SCRUM-309: Candidate cancels / withdraws an active application.
-// Note: Instead of deleteOne, we update the status to "Cancelled" so the application
-// record is preserved for history and audit tracking, and records cancelledAt.
- 
+
+//Lets an applicant cancel (delete) one of their own applications.
+//Deletes the record from the database and returns the deleted application.
+
 async function cancelApplication(userId, applicationId) {
   const application = await Application.findOne({ _id: applicationId, applicant: userId });
   if (!application) {
     throw new Error("Application not found.");
   }
 
-  // Prevent cancelling already finalized or inactive applications
-  if (["Rejected", "Offer Declined", "Cancelled"].includes(application.status)) {
-    throw new Error("Application is already finalized or cancelled.");
-  }
-  application.status = "Cancelled";
-  application.cancelledAt = new Date();
-  await application.save();
+  await Application.deleteOne({ _id: applicationId });
   return application;
 }
-
 
 // SCRUM-309: Candidate declines an extended job offer.
 // Changes status from 'Offered' to 'Offer Declined' and records the timestamp.
