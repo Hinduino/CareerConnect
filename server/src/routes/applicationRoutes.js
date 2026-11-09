@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
-const { createApplication, cancelApplication, getApplicationStatus } = require('../queries/applicationqueries');
+const { createApplication, cancelApplication, getApplicationStatus, getMyApplications, updateApplicationStatus, } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 
@@ -13,6 +13,16 @@ function sanitizeFilename(name) {
     return name.replace(/[\r\n"]/g, '').trim() || 'resume';
 }
 
+// GET /api/applications/my - Job seekers view their applications
+router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
+    try {
+        const applications = await getMyApplications(req.user.id);
+        res.status(200).json(applications);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error fetching your applications' });
+    }
+});
 // GET /api/applications/jobs/:jobId - Recruiters view applications for their posting
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
     try {
@@ -88,6 +98,48 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error fetching resume' });
+    }
+});
+
+// PATCH /api/applications/:applicationId/status
+// Recruiters update application statuses for their own job postings.
+router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.applicationId)) {
+            return res.status(400).json({ error: 'Invalid application ID' });
+        }
+
+        const { status } = req.body;
+
+        const application = await updateApplicationStatus(
+            req.user.id,
+            req.params.applicationId,
+            status
+        );
+
+        res.status(200).json({
+            message: 'Application status updated successfully.',
+            application: {
+                _id: application._id,
+                status: application.status,
+                updatedAt: application.updatedAt,
+            },
+        });
+    } catch (error) {
+        if (error.message === 'Invalid application status.') {
+            return res.status(400).json({ error: error.message });
+        }
+
+        if (error.message === 'Application not found.') {
+            return res.status(404).json({ error: error.message });
+        }
+
+        if (error.message === 'Not authorized to update this application.') {
+            return res.status(403).json({ error: error.message });
+        }
+
+        console.error(error);
+        res.status(500).json({ error: 'Server error updating application status' });
     }
 });
 

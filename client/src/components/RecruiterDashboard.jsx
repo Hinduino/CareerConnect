@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createJob, deleteJob, fetchMyJobs, fetchJobApplications, updateJob } from '../api/jobApi';
-import { fetchApplicationResumeBlobUrl } from '../api/applicationApi';
+import { fetchApplicationResumeBlobUrl,  updateApplicationStatus, } from '../api/applicationApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
 import JobPostingForm from './JobPostingForm';
 
-function RecruiterDashboard({ onBack }) {
+function RecruiterDashboard({ currentView, onBack }) {
   const { token } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,8 +15,13 @@ function RecruiterDashboard({ onBack }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [selectedJob, setSelectedJob] = useState(null);
   const [applications, setApplications] = useState([]);
+  const [allRecruiterApplications, setAllRecruiterApplications] = useState([]);
+  const [allApplicationsLoading, setAllApplicationsLoading] = useState(false);
+  const [allApplicationsError, setAllApplicationsError] = useState('');
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
+  const [applicationSearch, setApplicationSearch] = useState('');
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState('All');
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -37,6 +42,50 @@ function RecruiterDashboard({ onBack }) {
     };
     loadJobs();
   }, [token, refreshToken]);
+  useEffect(() => {
+  if (currentView !== 'recruiter-applications' || !token) return;
+
+  let cancelled = false;
+
+  const loadAllApplications = async () => {
+    setAllApplicationsLoading(true);
+    setAllApplicationsError('');
+
+    try {
+      const recruiterJobs = await fetchMyJobs(token);
+
+      const applicationGroups = await Promise.all(
+        recruiterJobs.map(async (job) => {
+          const jobApplications = await fetchJobApplications(token, job._id);
+
+          return jobApplications.map((application) => ({
+            ...application,
+            jobTitle: job.title,
+            jobCompany: job.company,
+          }));
+        })
+      );
+
+      if (!cancelled) {
+        setAllRecruiterApplications(applicationGroups.flat());
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setAllApplicationsError(err.message);
+      }
+    } finally {
+      if (!cancelled) {
+        setAllApplicationsLoading(false);
+      }
+    }
+  };
+
+  loadAllApplications();
+
+  return () => {
+    cancelled = true;
+  };
+}, [currentView, token, refreshToken]);
 
   const handleCreate = async (values) => {
     await createJob(token, values);
@@ -66,6 +115,34 @@ function RecruiterDashboard({ onBack }) {
       setApplicationsError(err.message);
     } finally {
       setApplicationsLoading(false);
+    }
+  };
+  // Update an applicant's status and refresh the displayed status.
+  const handleStatusChange = async (applicationId, newStatus) => {
+    setApplicationsError('');
+    try {
+      const result = await updateApplicationStatus(
+        token,
+        applicationId,
+        newStatus
+      );
+
+      setApplications((currentApplications) =>
+        currentApplications.map((application) =>
+          application._id === applicationId
+            ? { ...application, status: result.application.status }
+            : application
+        )
+      );
+      setAllRecruiterApplications((currentApplications) =>
+        currentApplications.map((application) =>
+          application._id === applicationId
+            ? { ...application, status: result.application.status }
+            : application
+        )
+      );
+    } catch (err) {
+      setApplicationsError(err.message);
     }
   };
   // Fetch the resume attached to an application and open/download it. Can't
@@ -101,8 +178,27 @@ function RecruiterDashboard({ onBack }) {
       setError(err.message);
     }
   };
+  const filteredRecruiterApplications = allRecruiterApplications.filter(
+    (application) => {
+      const search = applicationSearch.toLowerCase();
+
+      const matchesSearch = [
+        application.applicant?.name,
+        application.applicant?.email,
+        application.jobTitle,
+      ].some((value) =>
+        (value || '').toLowerCase().includes(search)
+      );
+
+      const matchesStatus =
+        applicationStatusFilter === 'All' ||
+        application.status === applicationStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    }
+  );
   return (
-    <main className="profile-page">
+    <main className="profile-page recruiter-dashboard">
       <div className="profile-container">
         <div className="profile-header">
           <h1>Recruiter Dashboard</h1>
@@ -111,7 +207,7 @@ function RecruiterDashboard({ onBack }) {
           </button>
         </div>
 
-        {mode === 'list' && (
+        {mode === 'list' && currentView !== 'recruiter-applications' && (
           <>
             <button
               type="button"
@@ -174,6 +270,96 @@ function RecruiterDashboard({ onBack }) {
             </div>
           </>
         )}
+        {currentView === 'recruiter-applications' && mode === 'list' && (
+          <section className="recruiter-applications-overview">
+            <h2>Applications</h2>
+            <p>Review applicants and manage their application statuses.</p>
+            <div className="recruiter-application-filters">
+              <input
+                type="search"
+                placeholder="Search applicants, emails, or jobs..."
+                value={applicationSearch}
+                onChange={(e) => setApplicationSearch(e.target.value)}
+                aria-label="Search applications"
+              />
+
+              <select
+                value={applicationStatusFilter}
+                onChange={(e) => setApplicationStatusFilter(e.target.value)}
+                aria-label="Filter by application status"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Applied">Applied</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Interview">Interview</option>
+                <option value="Offered">Offered</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+            {allApplicationsLoading ? (
+              <p>Loading applications...</p>
+            ) : allApplicationsError ? (
+              <p role="alert" className="resume-error">
+                {allApplicationsError}
+              </p>
+            ) : allRecruiterApplications.length === 0 ? (
+              <p>No applications received yet.</p>
+            ) : (
+              <div className="applications-table-wrapper">
+                <table className="applications-table recruiter-applications-table">
+                  <thead>
+                    <tr>
+                      <th>Applicant</th>
+                      <th>Job Title</th>
+                      <th>Email</th>
+                      <th>Date Applied</th>
+                      <th>Resume</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filteredRecruiterApplications.map((application) => (
+                      <tr key={application._id}>
+                        <td>{application.applicant?.name || 'Applicant'}</td>
+                        <td>{application.jobTitle}</td>
+                        <td>{application.applicant?.email || 'Unavailable'}</td>
+                        <td>
+                          {new Date(application.createdAt).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => handleDownloadResume(application)}
+                          >
+                            Download Resume
+                          </button>
+                        </td>
+                        <td>
+                          <select
+                            className="recruiter-status-select"
+                            value={application.status}
+                            onChange={(e) =>
+                              handleStatusChange(application._id, e.target.value)
+                            }
+                            aria-label={`Application status for ${application.applicant?.name || 'Applicant'}`}
+                          >
+                            <option value="Applied">Applied</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Interview">Interview</option>
+                            <option value="Offered">Offered</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
         {mode === 'applications' && selectedJob && (
           <section>
             <h2>Applications for {selectedJob.title}</h2>
@@ -199,22 +385,69 @@ function RecruiterDashboard({ onBack }) {
               <p>No applications received yet.</p>
             )}
 
-            {!applicationsLoading && !applicationsError && applications.map((application) => (
-              <div key={application._id} className="job-card">
-                <h3>{application.applicant?.name || 'Applicant'}</h3>
-                <p><strong>Email:</strong> {application.applicant?.email || 'Unavailable'}</p>
-                <p><strong>Location:</strong> {application.applicant?.location || 'Not provided'}</p>
-                <p><strong>Status:</strong> {application.status}</p>
-                <p><strong>Applied:</strong> {new Date(application.createdAt).toLocaleDateString()}</p>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => handleDownloadResume(application)}
-                >
-                  Download Resume
-                </button>
+            {!applicationsLoading && !applicationsError && applications.length > 0 && (
+              <div className="applications-table-wrapper">
+                <table className="applications-table recruiter-applications-table">
+                  <thead>
+                    <tr>
+                      <th>Applicant</th>
+                      <th>Email</th>
+                      <th>Location</th>
+                      <th>Date Applied</th>
+                      <th>Resume</th>
+                      <th>Application Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {applications.map((application) => (
+                      <tr key={application._id}>
+                        <td>
+                          <strong>
+                            {application.applicant?.name || 'Applicant'}
+                          </strong>
+                        </td>
+
+                        <td>{application.applicant?.email || 'Unavailable'}</td>
+
+                        <td>{application.applicant?.location || 'Not provided'}</td>
+
+                        <td>
+                          {new Date(application.createdAt).toLocaleDateString()}
+                        </td>
+
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => handleDownloadResume(application)}
+                          >
+                            Download Resume
+                          </button>
+                        </td>
+
+                        <td>
+                          <select
+                            className="recruiter-status-select"
+                            value={application.status}
+                            onChange={(e) =>
+                              handleStatusChange(application._id, e.target.value)
+                            }
+                            aria-label={`Application status for ${application.applicant?.name || 'Applicant'}`}
+                          >
+                            <option value="Applied">Applied</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Interview">Interview</option>
+                            <option value="Offered">Offered</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </section>
         )}
         {mode === 'create' && (

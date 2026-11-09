@@ -67,3 +67,39 @@ export async function fetchApplicationResumeBlobUrl(token, applicationId, { down
   const blob = await response.blob();
   return URL.createObjectURL(blob);
 }
+// Retrieve all applications for the logged-in job seeker.
+export async function fetchMyApplications(token) {
+  const response = await fetch(`${API_BASE}/applications/my`, {
+    headers: authHeaders(token),
+  });
+
+  const data = await parseJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to fetch applications");
+  }
+
+  return data;
+}
+// Update an application status (recruiter only).
+export async function updateApplicationStatus(token, applicationId, status) {
+  const response = await fetch(
+    `${API_BASE}/applications/${applicationId}/status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(token),
+      },
+      body: JSON.stringify({ status }),
+    }
+  );
+
+  const data = await parseJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to update application status");
+  }
+
+  return data;
+}

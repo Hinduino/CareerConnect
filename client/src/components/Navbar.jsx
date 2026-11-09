@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onHomeClick, onJobsClick, onDashboardClick }) {
+function Navbar({
+  currentView,
+  onLoginSuccess,
+  onSignUpSuccess,
+  onLogout,
+  onProfileClick,
+  onHomeClick,
+  onJobsClick,
+  onDashboardClick,
+  onPostingsClick,
+  onRecruiterApplicationsClick,
+  onApplicationsClick,
+}) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,8 +56,50 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
     logout();
     onLogout();
   };
-
+  const sidebarItems = user?.role === 'recruiter'
+    ? [
+        { label: 'Dashboard', view: 'recruiter-dashboard', action: onDashboardClick },
+        { label: 'Job Postings', view: 'recruiter-postings', action: onPostingsClick },
+        { label: 'Applications', view: 'recruiter-applications', action: onRecruiterApplicationsClick },
+        { label: 'Profile', view: 'profile', action: onProfileClick },
+      ]
+    : [
+        { label: 'Find Jobs', view: 'jobs', action: onJobsClick },
+        { label: 'My Applications', view: 'my-applications', action: onApplicationsClick },
+        { label: 'Profile', view: 'profile', action: onProfileClick },
+     ];
   return (
+  <>
+    {isAuthenticated && (
+      <aside className="cc-sidebar" aria-label="Main navigation">
+        <button
+          type="button"
+          className="cc-sidebar-brand"
+          onClick={onHomeClick}
+        >
+          CareerConnect
+        </button>
+
+        <p className="cc-sidebar-role">
+          {user?.role === 'recruiter' ? 'Recruiter Workspace' : 'Applicant Workspace'}
+        </p>
+
+        <nav className="cc-sidebar-nav">
+          {sidebarItems.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              className={`cc-sidebar-link ${currentView === item.view ? 'active' : ''}`}
+              onClick={item.action}
+              aria-current={currentView === item.view ? 'page' : undefined}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+    )}
+
     <header className="navbar-section">
       <nav className="navbar-container">
         <div className="navbar-brand">
@@ -54,20 +108,32 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
           </button>
         </div>
 
-        <ul className="navbar-links">
-          <li><button type="button" className="btn-secondary"onClick={onJobsClick}>Browse Jobs</button></li>
-        </ul>
+        {!isAuthenticated && (
+          <ul className="navbar-links">
+            <li>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onJobsClick}
+              >
+                Browse Jobs
+              </button>
+            </li>
+          </ul>
+        )}
 
-        {isAuthenticated ? (
-          <div className="navbar-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <span>{user?.email}</span>
-            {user?.role === 'recruiter' && (
-              <button type="button" className="btn-secondary" onClick={onDashboardClick}>Dashboard</button>
-            )}
-            <button type="button" className="btn-secondary" onClick={onProfileClick}>Profile</button>
-            <button type="button" className="btn-primary" onClick={handleLogout}>Log Out</button>
-          </div>
-        ) : (
+          {isAuthenticated ? (
+            <div className="navbar-actions">
+              <span>{user?.email}</span>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleLogout}
+              >
+                Log Out
+              </button>
+            </div>
+          ) : (
           <div className="navbar-actions" style={{ display: 'flex', gap: '10px' }}>
             <input
               type="email"
@@ -122,7 +188,8 @@ function Navbar({ onLoginSuccess, onSignUpSuccess, onLogout, onProfileClick, onH
           </div>
         )}
       </nav>
-    </header>
+        </header>
+  </>
   );
 }
 

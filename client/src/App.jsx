@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
 import RecruiterDashboard from './components/RecruiterDashboard'
+import MyApplications from './components/MyApplications'
 import Chatbot from './components/Chatbot'
 
 function App() {
@@ -34,8 +35,9 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={isAuthenticated ? 'app-container cc-authenticated' : 'app-container'}>
       <Navbar
+        currentView={currentView}
         onLoginSuccess={routeAfterAuth}
         onSignUpSuccess={(authedUser) =>
           setCurrentView(authedUser?.role === 'recruiter' ? 'recruiter-dashboard' : 'edit-profile')
@@ -45,6 +47,9 @@ function App() {
         onHomeClick={() => setCurrentView('home')}
         onJobsClick={() => setCurrentView('jobs')}
         onDashboardClick={() => setCurrentView('recruiter-dashboard')}
+        onPostingsClick={() => setCurrentView('recruiter-postings')}
+        onRecruiterApplicationsClick={() => setCurrentView('recruiter-applications')}
+        onApplicationsClick={() => setCurrentView('my-applications')}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -59,8 +64,17 @@ function App() {
           onSave={handleSaveProfile}
           onBack={() => setCurrentView('profile')}
         />
-      ) : currentView === 'recruiter-dashboard' && isAuthenticated && user?.role === 'recruiter' ? (
-        <RecruiterDashboard onBack={() => setCurrentView('home')} />
+      ) : (currentView === 'recruiter-dashboard' ||
+            currentView === 'recruiter-postings' ||
+            currentView === 'recruiter-applications') &&
+          isAuthenticated &&
+          user?.role === 'recruiter' ? (
+        <RecruiterDashboard
+          currentView={currentView}
+          onBack={() => setCurrentView('home')}
+        />
+      ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
+        <MyApplications />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {
