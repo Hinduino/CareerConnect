@@ -9,8 +9,8 @@ import { useAuth } from './context/AuthContext'
 import JobList from './components/JobList'
 import JobDetail from './components/JobDetail'
 import RecruiterDashboard from './components/RecruiterDashboard'
-import MyApplications from './components/MyApplications'
 import Chatbot from './components/Chatbot'
+import ApplicationHistory from './components/ApplicationHistory'
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
@@ -74,7 +74,7 @@ function App() {
           onBack={() => setCurrentView('home')}
         />
       ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
-        <MyApplications />
+        <ApplicationHistory />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {
