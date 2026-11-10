@@ -20,7 +20,7 @@ function sanitizeFilename(name) {
 }
 
 // ==========================================
-// JOB SEEKER / APPLICANT ROUTES (SCRUM-309)
+// JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
 // ==========================================
 
 // GET /api/applications/history - Candidate application history (sorted newest first)
@@ -60,7 +60,7 @@ router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
   }
 });
 
-// GET /api/applications/status/:jobId - Does the current user already have an application for this job?
+// GET /api/applications/status/:jobId - Check if user already applied
 router.get('/status/:jobId', requireAuth, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.jobId)) {
@@ -75,13 +75,21 @@ router.get('/status/:jobId', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/applications - Submit a new job application
+// POST /api/applications - Submit a new job application (blocks archived postings)
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { jobId, resumeId } = req.body;
 
     if (!jobId || !resumeId) {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
+    }
+
+    const job = await JobPosting.findById(jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Job posting not found.' });
+    }
+    if (job.isArchived) {
+      return res.status(400).json({ error: 'This job posting is archived and no longer accepts applications.' });
     }
 
     const application = await createApplication(req.user.id, jobId, resumeId);
@@ -107,7 +115,7 @@ router.post('/', requireAuth, async (req, res) => {
     ) {
       return res.status(400).json({ error: error.message });
     }
-    res.status(500).json({ error: 'Server error submitting application.' });
+    res.status(500).json({ error: error.message || 'Server error submitting application.' });
   }
 });
 
@@ -184,10 +192,7 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
     const disposition = req.query.download ? 'attachment' : 'inline';
 
     res.set('Content-Type', resume.contentType);
-    res.set(
-      'Content-Disposition',
-      `${disposition}; filename="${safeName}"; filename*=UTF-8''${safeName}`
-    );
+    res.set('Content-Disposition', `${disposition}; filename="${safeName}"`);
     res.send(resume.data);
   } catch (error) {
     console.error(error);
@@ -202,47 +207,25 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-// POST /api/applications - Submit a new job application
-router.post('/', requireAuth, async (req, res) => {
-    try {
-        const { jobId, resumeId } = req.body;
+    const { status } = req.body;
 
-        if (!jobId || !resumeId) {
-            return res.status(400).json({ error: 'Job ID and resume are required.' });
-        }
-        // SCRUM-310: Check if the posting is archived
-        const job = await JobPosting.findById(jobId);
-        if (!job) {
-        return res.status(404).json({ error: 'Job posting not found.' });
-        }
-        if (job.isArchived) {
-        return res.status(400).json({ error: 'This job posting is archived and no longer accepts applications.' });
-        }
-        
-        const application = await createApplication(req.user.id, jobId, resumeId);
+    const application = await updateApplicationStatus(
+      req.user.id,
+      req.params.applicationId,
+      status
+    );
 
-        res.status(201).json({
-            message: 'Application submitted successfully!',
-            application: {
-                _id: application._id,
-                job: application.job,
-                applicant: application.applicant,
-                status: application.status,
-                createdAt: application.createdAt,
-            },
-        });
-    } catch (error) {
-        console.error('Application Submission Error:', error);
-        if (error.message === 'You have already applied for this job.') {
-            return res.status(409).json({ error: error.message });
-        }
-        if (
-            error.message === 'Please select a resume to apply with.'
-            || error.message === 'Selected resume could not be found.'
-        ) {
-            return res.status(400).json({ error: error.message });
-        }
-        res.status(500).json({ error: 'Server error submitting application.' });
+    res.status(200).json({
+      message: 'Application status updated successfully.',
+      application: {
+        _id: application._id,
+        status: application.status,
+        updatedAt: application.updatedAt,
+      },
+    });
+  } catch (error) {
+    if (error.message === 'Invalid application status.') {
+      return res.status(400).json({ error: error.message });
     }
 
     if (error.message === 'Application not found.') {
