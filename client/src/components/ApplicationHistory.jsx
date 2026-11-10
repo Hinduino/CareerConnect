@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, cancelApplication, declineJobOffer } from '../api/applicationApi';
+import ApplicationAnalytics from './ApplicationAnalytics';
+
 
 const STATUS_STYLES = {
   Applied: { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' },
@@ -102,6 +104,11 @@ function ApplicationHistory() {
           Total Submitted: <strong>{applications.length}</strong>
         </span>
       </div>
+
+    { /* SCRUM-318: Job Seeker Application Analytics */}
+      {!loading && !error && applications.length > 0 && (
+        <ApplicationAnalytics applications={applications} />
+      )}
 
       {loading && <p style={{ color: '#64748b' }}>Loading your application history...</p>}
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}

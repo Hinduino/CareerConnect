@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const JobPosting = require('../models/JobPosting'); // Uses Nazila's database schema
+const Application = require('../models/Application'); // Added: needed to aggregate applicant countsconst requireAuth = require('../middleware/auth');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 
@@ -23,17 +24,64 @@ function validateJobId(req, res, next) {
     next();
 }
 
+// =========================================================================
+// RECRUITER POSTING MANAGEMENT ROUTES (SCRUM-310)
+// =========================================================================
+
 // GET /api/jobs/mine - Fetch the postings created by the logged-in recruiter.
 // Declared before the /:id route so "mine" is never mistaken for an id.
-router.get('/mine', requireAuth, requireRole('recruiter'), async (req, res) => {
-    try {
+
+router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recruiter'), async (req, res) => {    try {
         const jobs = await JobPosting.find({ postedBy: req.user.id }).sort({ createdAt: -1 });
-        res.status(200).json(jobs);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error fetching your job postings' });
-    }
+        // Aggregate the total applications received for each job posting
+    const jobsWithCounts = await Promise.all(
+      jobs.map(async (job) => {
+        const count = await Application.countDocuments({ job: job._id });
+        return {
+          ...job.toObject(),
+          applicantCount: count,
+        };
+      })
+    );
+
+    res.status(200).json(jobsWithCounts);
+  } catch (error) {
+    console.error('Error fetching recruiter job postings:', error);
+    res.status(500).json({ error: 'Server error fetching your job postings' });
+  }
 });
+
+// PATCH /api/jobs/:id/archive - Toggle archive status for a recruiter's job posting
+router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
+  try {
+    const job = await JobPosting.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Authorization check: Recruiters can only archive their own job postings
+    if (job.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You can only archive your own job postings' });
+    }
+
+    // Toggle boolean flag
+    job.isArchived = !job.isArchived;
+    await job.save();
+
+    res.status(200).json({
+      message: `Job posting ${job.isArchived ? 'archived' : 'unarchived'} successfully`,
+      job,
+    });
+  } catch (error) {
+    console.error('Error toggling archive status:', error);
+    res.status(500).json({ error: 'Server error toggling archive status' });
+  }
+});
+
+// =========================================================================
+// GENERAL JOB LISTING & SEARCH ROUTES (APPLICANT & PUBLIC)
+// =========================================================================
 
 // GET /api/jobs - Fetch all jobs with search & filtering
 router.get('/', async (req, res) => {
@@ -81,7 +129,8 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
             category: category.trim(),
             description: description.trim(),
             requirements: requirements.trim(),
-            postedBy: req.user.id
+            postedBy: req.user.id,
+            isArchived: false,
         });
 
         res.status(201).json(job);
