@@ -36,14 +36,28 @@ describe('JobDetail', () => {
     window.confirm = jest.fn(() => true);
   });
 
-  it('prompts signed-out users to log in instead of showing an apply button', async () => {
+it('allows visitors to view jobs but requires login before applying', async () => {
     useAuth.mockReturnValue({ token: null, isAuthenticated: false, user: null });
     render(<JobDetail jobId="job-1" onBack={() => {}} />);
 
+    // Visitors can view job details.
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
-    expect(screen.getByText('Log in as a job seeker to apply for this job.')).toBeInTheDocument();
-    expect(screen.queryByText('Apply Now')).not.toBeInTheDocument();
+
+    // Visitors can see the Apply Now button.
+    const applyButton = screen.getByRole('button', { name: 'Apply Now' });
+    expect(applyButton).toBeInTheDocument();
+
+    // Clicking Apply Now requires authentication.
+    fireEvent.click(applyButton);
+
+    expect(
+      screen.getByText('Please log in or sign up to apply for this job.')
+    ).toBeInTheDocument();
+
+    // No application is submitted without authentication.
+    expect(submitApplication).not.toHaveBeenCalled();
   });
+
 
   it('prompts the applicant to upload a resume when none are saved', async () => {
     fetchResumes.mockResolvedValue([]);
