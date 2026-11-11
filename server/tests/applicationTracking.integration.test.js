@@ -467,3 +467,71 @@ describe('POST /api/applications (role check)', () => {
         expect(response.status).toBe(403);
     });
 });
+    it('requires valid job ID for application status check', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/status/invalid-id')
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('requires valid application ID for resume download', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/invalid-id/resume')
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('blocks access to applications/jobs/:jobId with invalid job ID', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .get('/api/applications/jobs/invalid-id')
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('rejects status update with invalid application ID format', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .patch('/api/applications/invalid-id/status')
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Under Review' });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('returns 404 when recruiter tries to view applications for non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/jobs/${fakeJobId}`)
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('returns 404 when trying to download non-existent application resume', async () => {
+        const applicantId = await createUser();
+        const fakeAppId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/${fakeAppId}/resume`)
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Application not found');
+    });

@@ -179,3 +179,117 @@ describe('Resume routes (multi-resume support)', () => {
         expect(await Resume.findById(resume._id)).toBeNull();
     });
 });
+
+    it('rejects requests with invalid resume IDs', async () => {
+        const userId = await createUser();
+
+        const getFile = await request(app)
+            .get('/api/resumes/invalid-id/file')
+            .set('test_user_id', userId);
+        expect(getFile.status).toBe(400);
+        expect(getFile.body.error).toBe('Invalid resume ID');
+
+        const put = await request(app)
+            .put('/api/resumes/invalid-id')
+            .set('test_user_id', userId)
+            .attach('resume', Buffer.from('%PDF'), { filename: 'test.pdf', contentType: 'application/pdf' });
+        expect(put.status).toBe(400);
+        expect(put.body.error).toBe('Invalid resume ID');
+
+        const del = await request(app)
+            .delete('/api/resumes/invalid-id')
+            .set('test_user_id', userId);
+        expect(del.status).toBe(400);
+        expect(del.body.error).toBe('Invalid resume ID');
+    });
+
+    it('rejects POST requests with no file uploaded', async () => {
+        const userId = await createUser();
+
+        const response = await request(app)
+            .post('/api/resumes')
+            .set('test_user_id', userId)
+            .send();
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('No file was uploaded');
+    });
+
+    it('rejects PUT requests with no file uploaded', async () => {
+        const userId = await createUser();
+        const resumeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .put(`/api/resumes/${resumeId}`)
+            .set('test_user_id', userId)
+            .send();
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('No file was uploaded');
+    });
+
+    it('returns 404 when trying to get non-existent resume file', async () => {
+        const userId = await createUser();
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/resumes/${fakeId}/file`)
+            .set('test_user_id', userId);
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Resume not found');
+    });
+
+    it('supports download query parameter to change content disposition', async () => {
+        const userId = await createUser();
+        const resume = await Resume.create({
+            user: userId,
+            originalName: 'resume.pdf',
+            contentType: 'application/pdf',
+            size: 4,
+            data: Buffer.from('test'),
+        });
+
+        const inline = await request(app)
+            .get(`/api/resumes/${resume._id}/file`)
+            .set('test_user_id', userId)
+            .buffer(true)
+            .parse(parseBuffer);
+        
+        expect(inline.status).toBe(200);
+        expect(inline.headers['content-disposition']).toContain('inline');
+
+        const download = await request(app)
+            .get(`/api/resumes/${resume._id}/file?download=true`)
+            .set('test_user_id', userId)
+            .buffer(true)
+            .parse(parseBuffer);
+        
+        expect(download.status).toBe(200);
+        expect(download.headers['content-disposition']).toContain('attachment');
+    });
+
+    it('returns 404 when replacing non-existent resume', async () => {
+        const userId = await createUser();
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .put(`/api/resumes/${fakeId}`)
+            .set('test_user_id', userId)
+            .attach('resume', Buffer.from('%PDF-new'), { filename: 'new.pdf', contentType: 'application/pdf' });
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Resume not found');
+    });
+
+    it('returns 404 when deleting non-existent resume', async () => {
+        const userId = await createUser();
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .delete(`/api/resumes/${fakeId}`)
+            .set('test_user_id', userId);
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Resume not found');
+    });

@@ -75,6 +75,10 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
     }
 
+    if (!mongoose.isValidObjectId(jobId)) {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
+
     const job = await JobPosting.findById(jobId);
     if (!job) {
       return res.status(404).json({ error: 'Job posting not found.' });
