@@ -76,5 +76,5 @@ module.exports = {
   ],
   collectCoverage: false,
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'text-summary', 'html', 'lcov', 'json']
+  coverageReporters: ['text', 'text-summary', 'html', 'lcov', 'json', 'json-summary']
 };
