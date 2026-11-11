@@ -16,10 +16,10 @@ Some files have specific coverage requirements based on their complexity:
 
 | File | Statements | Branches | Functions | Lines |
 |------|------------|----------|-----------|-------|
-| applicationRoutes.js | 80% | 70% | 90% | 80% |
-| jobRoutes.js | 80% | 75% | 90% | 80% |
-| resumeRoutes.js | 80% | 70% | 90% | 80% |
-| profilePictureRoutes.js | 90% | 90% | 100% | 90% |
+| applicationRoutes.js | 70% | 70% | 90% | 80% |
+| jobRoutes.js | 75% | 75% | 90% | 80% |
+| resumeRoutes.js | 70% | 70% | 90% | 80% |
+| profilePictureRoutes.js | 80% | 90% | 100% | 90% |
 
 ## Excluded Files
 

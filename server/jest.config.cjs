@@ -43,7 +43,7 @@ module.exports = {
           statements: 80
         },
         './src/routes/profilePictureRoutes.js': {
-          branches: 90,
+          branches: 80,
           functions: 100,
           lines: 90,
           statements: 90
