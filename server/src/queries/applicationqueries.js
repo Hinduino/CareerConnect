@@ -1,14 +1,20 @@
 const Application = require("../models/Application");
+const { APPLICATION_STATUSES, APPLICATION_STATUS_VALUES } = require("../constants/applicationStatus");
 const { findResumeByIdForUser } = require("./resumeQueries");
 
-// Creates a new job application in the database, attaching a snapshot of
-// one of the applicant's saved resumes.
+const RECRUITER_EDITABLE_STATUSES = [
+  APPLICATION_STATUSES.APPLIED,
+  APPLICATION_STATUSES.UNDER_REVIEW,
+  APPLICATION_STATUSES.INTERVIEW,
+  APPLICATION_STATUSES.OFFERED,
+  APPLICATION_STATUSES.REJECTED,
+];
+
 async function createApplication(userId, jobId, resumeId) {
   if (!resumeId) {
     throw new Error("Please select a resume to apply with.");
   }
 
-  // Check if the user has already applied to this specific job
   const existingApplication = await Application.findOne({ applicant: userId, job: jobId });
   if (existingApplication) {
     throw new Error("You have already applied for this job.");
@@ -22,7 +28,7 @@ async function createApplication(userId, jobId, resumeId) {
   const newApplication = await Application.create({
     applicant: userId,
     job: jobId,
-    status: "Applied",
+    status: APPLICATION_STATUSES.APPLIED,
     resume: {
       originalName: resume.originalName,
       contentType: resume.contentType,
@@ -34,11 +40,6 @@ async function createApplication(userId, jobId, resumeId) {
   return newApplication;
 }
 
-//SCRUM-309: Candidate cancels / withdraws an active application.
-
-//Lets an applicant cancel (delete) one of their own applications.
-//Deletes the record from the database and returns the deleted application.
-
 async function cancelApplication(userId, applicationId) {
   const application = await Application.findOne({ _id: applicationId, applicant: userId });
   if (!application) {
@@ -49,30 +50,22 @@ async function cancelApplication(userId, applicationId) {
   return application;
 }
 
-// SCRUM-309: Candidate declines an extended job offer.
-// Changes status from 'Offered' to 'Offer Declined' and records the timestamp.
-// This guarantees the rejection is recorded as candidate-initiated, not recruiter-rejected.
-
 async function declineJobOffer(applicationId, userId) {
   const application = await Application.findOne({ _id: applicationId, applicant: userId });
   if (!application) {
     throw new Error("Application not found.");
   }
 
-  if (application.status !== "Offered") {
+  if (application.status !== APPLICATION_STATUSES.OFFERED) {
     throw new Error("Cannot decline an offer unless one has been extended.");
   }
 
-  application.status = "Offer Declined";
+  application.status = APPLICATION_STATUSES.OFFER_DECLINED;
   application.declinedAt = new Date();
   await application.save();
 
   return application;
 }
-
-// SCRUM-309: Retrieve full application history for the applicant.
-// Returns records sorted newest first (createdAt: -1) and populates
-// the job details needed by the History Table (title, company, location, description).
 
 async function getApplicationHistoryByUser(userId) {
   return Application.find({ applicant: userId })
@@ -80,8 +73,6 @@ async function getApplicationHistoryByUser(userId) {
     .sort({ createdAt: -1 });
 }
 
-
-// Whether the given user currently has an application on file for a job.
 async function getApplicationStatus(userId, jobId) {
   const application = await Application.findOne({ applicant: userId, job: jobId }).select(
     "_id status"
@@ -92,25 +83,15 @@ async function getApplicationStatus(userId, jobId) {
   };
 }
 
-// Retrieve all applications submitted by the logged-in job seeker.
 async function getMyApplications(userId) {
   return Application.find({ applicant: userId })
     .select("_id job status createdAt updatedAt")
     .populate("job", "title company location category")
     .sort({ createdAt: -1 });
 }
-// Update an application status only if the recruiter owns the job.
-async function updateApplicationStatus(recruiterId, applicationId, status) {
-  const allowedStatuses = [
-    "Applied",
-    "Under Review",
-    "Interview",
-    "Offered",
-    "Rejected",
-    "Offer Declined",
-  ];
 
-  if (!allowedStatuses.includes(status)) {
+async function updateApplicationStatus(recruiterId, applicationId, status) {
+  if (!RECRUITER_EDITABLE_STATUSES.includes(status)) {
     throw new Error("Invalid application status.");
   }
 
@@ -132,6 +113,7 @@ async function updateApplicationStatus(recruiterId, applicationId, status) {
 
   return application;
 }
+
 module.exports = {
   createApplication,
   cancelApplication,

@@ -267,7 +267,7 @@ describe('PATCH /api/jobs/:id/archive (archive / unarchive a posting)', () => {
 
     // Known bug: PR #52 says archived postings are hidden from applicant
     // search, but GET /api/jobs does not filter on isArchived.
-    it.failing('KNOWN BUG: hides archived postings from the public job list', async () => {
+    it('hides archived postings from the public job list', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
         await createJob(recruiterId, { title: 'Still Open' });
         const archivedJobId = await createJob(recruiterId, { title: 'Closed Role' });

@@ -1,9 +1,5 @@
 const mongoose = require("mongoose");
 
-// Each applicant can save multiple resumes and choose one per application.
-// The file bytes live on this document (not on User) so a user can have any
-// number of them. `select: false` on `data` keeps list queries from pulling
-// the file bytes by accident; only the download route asks for them.
 const resumeSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -14,5 +10,7 @@ const resumeSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+resumeSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Resume || mongoose.model("Resume", resumeSchema);

@@ -1,11 +1,8 @@
 const mongoose = require("mongoose");
+const { APPLICATION_STATUS_VALUES } = require("../constants/applicationStatus");
 
-// A snapshot of the resume the applicant selected at submission time. This
-// is copied from the applicant's saved Resume document rather than
-// referenced by id, so the recruiter always sees exactly what was attached
-// even if the applicant later edits or deletes that saved resume.
 const applicationSchema = new mongoose.Schema(
-      {
+  {
     applicant: { 
       type: mongoose.Schema.Types.ObjectId, 
       ref: "User", 
@@ -18,24 +15,14 @@ const applicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: [
-        "Applied", 
-        "Under Review", 
-        "under review", 
-        "Interview", 
-        "Interviewing", 
-        "Offered", 
-        "Rejected", 
-        "Offer Declined", 
-        "Cancelled"
-      ],
+      enum: APPLICATION_STATUS_VALUES,
       default: "Applied",
     },
     resume: {
       originalName: { type: String },
       contentType: { type: String },
       size: { type: Number },
-      data: { type: Buffer },
+      data: { type: Buffer, select: false },
     },
     declinedAt: {
       type: Date,
@@ -47,7 +34,10 @@ const applicationSchema = new mongoose.Schema(
     }
   },
   { timestamps: true }
-
 );
+
+applicationSchema.index({ applicant: 1, job: 1 }, { unique: true });
+applicationSchema.index({ job: 1, status: 1 });
+applicationSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.models.Application || mongoose.model("Application", applicationSchema);

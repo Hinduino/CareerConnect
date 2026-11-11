@@ -30,6 +30,7 @@ const app = require('../src/server');
 const User = require('../src/models/User');
 const JobPosting = require('../src/models/JobPosting');
 const Application = require('../src/models/Application');
+const { APPLICATION_STATUSES } = require('../src/constants/applicationStatus');
 
 let mongoServer;
 
@@ -66,7 +67,7 @@ async function createApplication(applicantId, jobId, overrides = {}) {
     const application = await Application.create({
         applicant: applicantId,
         job: jobId,
-        status: 'Applied',
+        status: APPLICATION_STATUSES.APPLIED,
         resume: {
             originalName: 'resume.pdf',
             contentType: 'application/pdf',
@@ -79,7 +80,7 @@ async function createApplication(applicantId, jobId, overrides = {}) {
 }
 
 // A recruiter with one posting and one application on it.
-async function setupScenario({ status = 'Applied' } = {}) {
+async function setupScenario({ status = APPLICATION_STATUSES.APPLIED } = {}) {
     const recruiterId = await createUser({ role: 'recruiter' });
     const applicantId = await createUser();
     const jobId = await createJob(recruiterId);
@@ -120,7 +121,7 @@ beforeEach(async () => {
 // PR #50 – SCRUM-315: Recruiter application status management
 // ==========================================================================
 describe('PATCH /api/applications/:applicationId/status (recruiter status updates)', () => {
-    it.each(['Under Review', 'Interview', 'Offered', 'Rejected', 'Applied'])(
+    it.each([APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.OFFERED, APPLICATION_STATUSES.REJECTED, APPLICATION_STATUSES.APPLIED])(
         'lets the owning recruiter set the status to "%s" and saves it',
         async (status) => {
             const { recruiterId, applicationId } = await setupScenario({
@@ -211,7 +212,7 @@ describe('PATCH /api/applications/:applicationId/status (recruiter status update
 
     // Known bug: "Offer Declined" is meant to be set only by the candidate
     // (PR #51), but the recruiter's list of allowed statuses includes it.
-    it.failing('KNOWN BUG: does not let a recruiter set "Offer Declined" (only the candidate can)', async () => {
+    it('does not let a recruiter set "Offer Declined" (only the candidate can)', async () => {
         const { recruiterId, applicationId } = await setupScenario({ status: 'Offered' });
 
         const response = await updateStatus(applicationId, recruiterId, 'Offer Declined');

@@ -1,8 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
-const JobPosting = require('../models/JobPosting'); // Uses Nazila's database schema
-const Application = require('../models/Application'); // Added: needed to aggregate applicant countsconst requireAuth = require('../middleware/auth');
+const JobPosting = require('../models/JobPosting');
+const Application = require('../models/Application');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 
@@ -28,21 +28,30 @@ function validateJobId(req, res, next) {
 // RECRUITER POSTING MANAGEMENT ROUTES (SCRUM-310)
 // =========================================================================
 
-// GET /api/jobs/mine - Fetch the postings created by the logged-in recruiter.
-// Declared before the /:id route so "mine" is never mistaken for an id.
-
-router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recruiter'), async (req, res) => {    try {
-        const jobs = await JobPosting.find({ postedBy: req.user.id }).sort({ createdAt: -1 });
-        // Aggregate the total applications received for each job posting
-    const jobsWithCounts = await Promise.all(
-      jobs.map(async (job) => {
-        const count = await Application.countDocuments({ job: job._id });
-        return {
-          ...job.toObject(),
-          applicantCount: count,
-        };
-      })
-    );
+router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recruiter'), async (req, res) => {    
+  try {
+    const jobsWithCounts = await JobPosting.aggregate([
+      { $match: { postedBy: mongoose.Types.ObjectId.createFromHexString(req.user.id) } },
+      {
+        $lookup: {
+          from: 'applications',
+          localField: '_id',
+          foreignField: 'job',
+          as: 'applications'
+        }
+      },
+      {
+        $addFields: {
+          applicantCount: { $size: '$applications' }
+        }
+      },
+      {
+        $project: {
+          applications: 0
+        }
+      },
+      { $sort: { createdAt: -1 } }
+    ]);
 
     res.status(200).json(jobsWithCounts);
   } catch (error) {
@@ -60,12 +69,10 @@ router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobI
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    // Authorization check: Recruiters can only archive their own job postings
     if (job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({ error: 'You can only archive your own job postings' });
     }
 
-    // Toggle boolean flag
     job.isArchived = !job.isArchived;
     await job.save();
 
@@ -83,11 +90,11 @@ router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobI
 // GENERAL JOB LISTING & SEARCH ROUTES (APPLICANT & PUBLIC)
 // =========================================================================
 
-// GET /api/jobs - Fetch all jobs with search & filtering
+// GET /api/jobs - Fetch all non-archived jobs with search & filtering
 router.get('/', async (req, res) => {
     try {
         const { keyword, location, category } = req.query;
-        const query = {};
+        const query = { isArchived: { $ne: true } };
 
         if (keyword) query.title = { $regex: keyword, $options: 'i' };
         if (location) query.location = { $regex: location, $options: 'i' };
@@ -162,7 +169,6 @@ router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (
         job.category = category.trim();
         job.description = description.trim();
         job.requirements = requirements.trim();
-        // `updatedAt` is bumped automatically by the timestamps option on save.
         await job.save();
 
         res.status(200).json(job);
@@ -194,4 +200,5 @@ router.delete('/:id', requireAuth, requireRole('recruiter'), validateJobId, asyn
         res.status(500).json({ error: 'Server error deleting job posting' });
     }
 });
+
 module.exports = router;
