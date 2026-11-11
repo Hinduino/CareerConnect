@@ -84,7 +84,20 @@ function JobDetail({ jobId, onBack }) {
 
     const handleApply = async () => {
         if (!isAuthenticated) {
-            setActionError('You must be logged in to apply for this job.');
+            setActionError('Please log in or sign up to apply for this job.');
+
+            const loginInput = document.querySelector(
+                '.navbar-actions input[type="email"]'
+            );
+
+            if (loginInput) {
+                loginInput.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                loginInput.focus({ preventScroll: true });
+            }
+
             return;
         }
         if (!selectedResumeId) {
@@ -156,9 +169,20 @@ function JobDetail({ jobId, onBack }) {
                 {actionError && (
                     <p style={{ color: 'red', marginBottom: '10px' }}>{actionError}</p>
                 )}
-
                 {!isAuthenticated ? (
-                    <p className="resume-hint">Log in as a job seeker to apply for this job.</p>
+                    <div>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={handleApply}
+                        >
+                            Apply Now
+                        </button>
+                        <p className="resume-hint">
+                            You can browse jobs without an account.
+                            Log in or sign up above to submit an application.
+                        </p>
+                    </div>
                 ) : statusLoading ? (
                     <p>Checking application status...</p>
                 ) : applied ? (
