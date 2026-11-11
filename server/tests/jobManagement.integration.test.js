@@ -446,3 +446,186 @@ describe('POST /api/applications (archived postings)', () => {
         expect(response.status).toBe(403);
         expect(response.body.error).toContain('your own');
     });
+
+    it('returns 404 when trying to view non-existent job', async () => {
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/jobs/${fakeJobId}`);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('returns 400 for malformed job ID in GET detail', async () => {
+        const response = await request(app)
+            .get('/api/jobs/invalid-id');
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('returns 404 when trying to update non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .put(`/api/jobs/${fakeJobId}`)
+            .set('test_user_id', recruiterId)
+            .send({
+                title: 'Engineer',
+                company: 'Acme',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build things',
+                requirements: 'Experience required',
+            });
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('returns 404 when trying to delete non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .delete(`/api/jobs/${fakeJobId}`)
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('returns 404 when trying to archive non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .patch(`/api/jobs/${fakeJobId}/archive`)
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('filters jobs by keyword in title', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId, { title: 'Senior Engineer' });
+        await createJob(recruiterId, { title: 'Data Scientist', company: 'TechCorp' });
+        await createJob(recruiterId, { title: 'Product Manager' });
+
+        const response = await request(app)
+            .get('/api/jobs?keyword=Engineer');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(1);
+        expect(response.body[0].title).toBe('Senior Engineer');
+    });
+
+    it('filters jobs by location', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId, { location: 'New York' });
+        await createJob(recruiterId, { location: 'San Francisco' });
+        await createJob(recruiterId, { location: 'Remote' });
+
+        const response = await request(app)
+            .get('/api/jobs?location=New%20York');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(1);
+        expect(response.body[0].location).toBe('New York');
+    });
+
+    it('filters jobs by category', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId, { category: 'Engineering' });
+        await createJob(recruiterId, { category: 'Sales' });
+        await createJob(recruiterId, { category: 'Engineering' });
+
+        const response = await request(app)
+            .get('/api/jobs?category=Engineering');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(2);
+    });
+
+    it('returns 400 when posting job with missing title', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .post('/api/jobs')
+            .set('test_user_id', recruiterId)
+            .send({
+                company: 'Acme',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build things',
+                requirements: 'Experience required',
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain('title');
+    });
+
+    it('returns 400 when posting job with empty company', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .post('/api/jobs')
+            .set('test_user_id', recruiterId)
+            .send({
+                title: 'Engineer',
+                company: '   ',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build things',
+                requirements: 'Experience required',
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain('company');
+    });
+
+    it('returns 400 when updating job with missing fields', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const jobId = await createJob(recruiterId);
+
+        const response = await request(app)
+            .put(`/api/jobs/${jobId}`)
+            .set('test_user_id', recruiterId)
+            .send({
+                title: 'Engineer',
+                // Missing other required fields
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain('required');
+    });
+
+    it('combines multiple filters in job search', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId, {
+            title: 'Senior Engineer',
+            location: 'New York',
+            category: 'Engineering',
+        });
+        await createJob(recruiterId, {
+            title: 'Senior Designer',
+            location: 'New York',
+            category: 'Design',
+        });
+        await createJob(recruiterId, {
+            title: 'Senior Engineer',
+            location: 'San Francisco',
+            category: 'Engineering',
+        });
+
+        const response = await request(app)
+            .get('/api/jobs?keyword=Engineer&location=New%20York&category=Engineering');
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(1);
+        expect(response.body[0].title).toBe('Senior Engineer');
+        expect(response.body[0].location).toBe('New York');
+    });
