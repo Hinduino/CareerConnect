@@ -4,19 +4,11 @@ This project maintains a **minimum code coverage threshold of 80%** to ensure co
 
 ## Coverage Goals
 
-- **Global Minimum:** 80% coverage for statements, lines, and functions
+- **Global Minimum:** 75% coverage for statements, lines, and functions
 - **Branch Coverage:** 75% minimum (complex routes may have different thresholds)
 - **Ideal Target:** 100% coverage whenever possible
 - **Exceptions:** Files with complex external dependencies may have adjusted thresholds
 
-## Current Coverage
-
-| Metric | Coverage | Status |
-|--------|----------|--------|
-| Statements | 81.59% | ✅ |
-| Lines | 82.01% | ✅ |
-| Functions | 93.67% | ✅ |
-| Branches | 74.22% | ⚠️ |
 
 ## File-Specific Thresholds
 

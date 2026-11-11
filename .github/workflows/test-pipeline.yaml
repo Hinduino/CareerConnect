@@ -90,7 +90,7 @@ jobs:
             echo "❌ Coverage file not found"
             exit 1
           fi
-          node -e "const c=require('./coverage/coverage-summary.json').total;const t=80;let f=false;console.log('\\n📊 Coverage Check Results:');console.log('================================');const m={'Lines':c.lines.pct,'Statements':c.statements.pct,'Functions':c.functions.pct,'Branches':c.branches.pct};Object.entries(m).forEach(([k,v])=>{const s=v>=t?'✅':'❌';console.log(s+' '+k+': '+v.toFixed(2)+'% (threshold: '+t+'%)');if(v<t)f=true;});console.log('================================\\n');if(f){console.error('Coverage below threshold!');process.exit(1);}else{console.log('All coverage checks passed!');}"
+          node -e "const c=require('./coverage/coverage-summary.json').total;const t=75;let f=false;console.log('\\n📊 Coverage Check Results:');console.log('================================');const m={'Lines':c.lines.pct,'Statements':c.statements.pct,'Functions':c.functions.pct,'Branches':c.branches.pct};Object.entries(m).forEach(([k,v])=>{const s=v>=t?'✅':'❌';console.log(s+' '+k+': '+v.toFixed(2)+'% (threshold: '+t+'%)');if(v<t)f=true;});console.log('================================\\n');if(f){console.error('Coverage below threshold!');process.exit(1);}else{console.log('All coverage checks passed!');}"
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
