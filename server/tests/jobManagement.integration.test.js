@@ -343,3 +343,106 @@ describe('POST /api/applications (archived postings)', () => {
         expect(history.body[0].job.title).toBe('Frontend Developer');
     });
 });
+    it('validates job posting fields', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .post('/api/jobs')
+            .set('test_user_id', recruiterId)
+            .send({
+                title: 'Engineer',
+                company: 'Acme',
+                // Missing location, category, description, requirements
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain('required');
+    });
+
+    it('returns 400 for malformed job ID in PATCH archive', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .patch('/api/jobs/invalid-id/archive')
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('returns 400 for malformed job ID in PUT', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .put('/api/jobs/invalid-id')
+            .set('test_user_id', recruiterId)
+            .send({
+                title: 'Engineer',
+                company: 'Acme',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build things',
+                requirements: 'Experience required',
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('returns 400 for malformed job ID in DELETE', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .delete('/api/jobs/invalid-id')
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('prevents updating jobs owned by other recruiters', async () => {
+        const recruiter1 = await createUser({ role: 'recruiter' });
+        const recruiter2 = await createUser({ role: 'recruiter' });
+        const jobId = await createJob(recruiter1);
+
+        const response = await request(app)
+            .put(`/api/jobs/${jobId}`)
+            .set('test_user_id', recruiter2)
+            .send({
+                title: 'New Title',
+                company: 'Acme',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build things',
+                requirements: 'Experience required',
+            });
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toContain('your own');
+    });
+
+    it('prevents deleting jobs owned by other recruiters', async () => {
+        const recruiter1 = await createUser({ role: 'recruiter' });
+        const recruiter2 = await createUser({ role: 'recruiter' });
+        const jobId = await createJob(recruiter1);
+
+        const response = await request(app)
+            .delete(`/api/jobs/${jobId}`)
+            .set('test_user_id', recruiter2);
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toContain('your own');
+    });
+
+    it('prevents archiving jobs owned by other recruiters', async () => {
+        const recruiter1 = await createUser({ role: 'recruiter' });
+        const recruiter2 = await createUser({ role: 'recruiter' });
+        const jobId = await createJob(recruiter1);
+
+        const response = await request(app)
+            .patch(`/api/jobs/${jobId}/archive`)
+            .set('test_user_id', recruiter2);
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toContain('your own');
+    });
