@@ -1,5 +1,5 @@
 const Application = require("../models/Application");
-const { APPLICATION_STATUSES, APPLICATION_STATUS_VALUES } = require("../constants/applicationStatus");
+const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const { findResumeByIdForUser } = require("./resumeQueries");
 
 const RECRUITER_EDITABLE_STATUSES = [

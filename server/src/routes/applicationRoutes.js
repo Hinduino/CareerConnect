@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
 const { sanitizeFilename } = require('../utils/fileUtils');
-const { APPLICATION_STATUSES } = require('../constants/applicationStatus');
 const {
   createApplication,
   cancelApplication,
