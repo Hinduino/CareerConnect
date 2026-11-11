@@ -77,44 +77,66 @@ jobs:
           if [ -f coverage/coverage-summary.json ]; then
             echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            node -e "
-              const coverage = require('./coverage/coverage-summary.json');
-              const total = coverage.total;
-              console.log('| Metric | Coverage |');
-              console.log('|--------|----------|');
-              console.log('| Lines | ' + total.lines.pct.toFixed(2) + '% |');
-              console.log('| Statements | ' + total.statements.pct.toFixed(2) + '% |');
-              console.log('| Functions | ' + total.functions.pct.toFixed(2) + '% |');
-              console.log('| Branches | ' + total.branches.pct.toFixed(2) + '% |');
-            " >> $GITHUB_STEP_SUMMARY
+            node << 'COVERAGE_SCRIPT'
+              try {
+                const coverage = require('./coverage/coverage-summary.json');
+                const total = coverage.total;
+                console.log('| Metric | Coverage |');
+                console.log('|--------|----------|');
+                console.log('| Lines | ' + total.lines.pct.toFixed(2) + '% |');
+                console.log('| Statements | ' + total.statements.pct.toFixed(2) + '% |');
+                console.log('| Functions | ' + total.functions.pct.toFixed(2) + '% |');
+                console.log('| Branches | ' + total.branches.pct.toFixed(2) + '% |');
+              } catch (error) {
+                console.error('Error reading coverage file:', error.message);
+              }
+            COVERAGE_SCRIPT
+          else
+            echo "⚠️ Coverage file not found" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Check Coverage Threshold
         working-directory: ./server
+        if: always()
         run: |
-          node -e "
-            const coverage = require('./coverage/coverage-summary.json');
-            const total = coverage.total;
-            const threshold = 80;
-            const metrics = {
-              'Lines': total.lines.pct,
-              'Statements': total.statements.pct,
-              'Functions': total.functions.pct,
-              'Branches': total.branches.pct
-            };
-            let failed = false;
-            for (const [metric, value] of Object.entries(metrics)) {
-              if (value < threshold) {
-                console.error('❌ ' + metric + ' coverage is ' + value.toFixed(2) + '% (threshold: ' + threshold + '%)');
-                failed = true;
-              } else {
-                console.log('✅ ' + metric + ' coverage is ' + value.toFixed(2) + '%');
+          if [ ! -f coverage/coverage-summary.json ]; then
+            echo "❌ Coverage file not found - tests may have failed"
+            exit 1
+          fi
+          
+          node << 'COVERAGE_CHECK'
+            try {
+              const coverage = require('./coverage/coverage-summary.json');
+              const total = coverage.total;
+              const threshold = 80;
+              const metrics = {
+                'Lines': total.lines.pct,
+                'Statements': total.statements.pct,
+                'Functions': total.functions.pct,
+                'Branches': total.branches.pct
+              };
+              let failed = false;
+              console.log('\n📊 Coverage Check Results:');
+              console.log('================================');
+              for (const [metric, value] of Object.entries(metrics)) {
+                const status = value >= threshold ? '✅' : '❌';
+                console.log(status + ' ' + metric + ': ' + value.toFixed(2) + '% (threshold: ' + threshold + '%)');
+                if (value < threshold) {
+                  failed = true;
+                }
               }
-            }
-            if (failed) {
+              console.log('================================\n');
+              if (failed) {
+                console.error('Coverage below threshold!');
+                process.exit(1);
+              } else {
+                console.log('All coverage checks passed!');
+              }
+            } catch (error) {
+              console.error('Error checking coverage:', error.message);
               process.exit(1);
             }
-          "
+          COVERAGE_CHECK
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
