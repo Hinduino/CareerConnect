@@ -20,7 +20,8 @@ body {
 
 /* Navbar */
 .navbar-section {
-  border-bottom: 1px solid #ccc;
+  background: var(--cc-surface, #ffffff);
+  border-bottom: 1px solid var(--cc-border, #e5def1);
   padding: 1rem 2rem;
 }
 
@@ -41,13 +42,14 @@ body {
 .navbar-actions {
   display: flex;
   gap: 0.75rem;
+  align-items: center;
 }
 
 .navbar-home {
   padding: 0;
   border: 0;
   background: none;
-  color: inherit;
+  color: var(--cc-primary, #5630b4);
   cursor: pointer;
   font: inherit;
   font-size: 1.5rem;
@@ -56,27 +58,51 @@ body {
 
 /* Hero Section */
 .hero-section {
-  border-bottom: 1px dashed #ccc;
-  padding: 3rem 2rem;
+  background: linear-gradient(135deg, var(--cc-primary-light, #ede7fa) 0%, var(--cc-background, #faf8ff) 100%);
+  border-bottom: 1px solid var(--cc-border, #e5def1);
+  padding: 5rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  align-items: center;
+  text-align: center;
 }
 
-
-
-
-
-/* Main Content Section */
-.main-content-section {
-  flex: 1;
-  padding: 3rem 2rem;
-  border-bottom: 1px dashed #ccc;
+.hero-content {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
 }
 
-.section-header {
-  margin-bottom: 2rem;
+.hero-badge {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--cc-primary-light, #ede7fa);
+  color: var(--cc-primary, #5630b4);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
+
+.hero-content h1 {
+  margin: 0;
+  font-size: 2.75rem;
+  line-height: 1.15;
+  color: var(--cc-text, #20213a);
+}
+
+.hero-content p {
+  margin: 0;
+  color: var(--cc-muted, #625d76);
+  font-size: 1.1rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+}
+
 
 /* Resume Manager Section */
 .resume-manager-section {
@@ -155,7 +181,7 @@ body {
 
 /* Buttons */
 .btn-primary {
-  background-color: #111;
+  background-color: var(--cc-primary, #5630b4);
   color: white;
   border: none;
   padding: 0.5rem 1.1rem;
@@ -167,7 +193,7 @@ body {
 }
 
 .btn-primary:hover {
-  background-color: #333;
+  background-color: var(--cc-primary-hover, #452394);
 }
 
 .btn-primary:disabled,
@@ -200,8 +226,8 @@ body {
 
 .btn-secondary {
   background-color: transparent;
-  color: #111;
-  border: 1.5px solid #111;
+  color: var(--cc-primary, #5630b4);
+  border: 1.5px solid var(--cc-primary, #5630b4);
   padding: 0.5rem 1.1rem;
   border-radius: 6px;
   cursor: pointer;
@@ -211,7 +237,7 @@ body {
 }
 
 .btn-secondary:hover {
-  background-color: #f0f0f0;
+  background-color: var(--cc-primary-light, #ede7fa);
 }
 
 /* Profile Page */
