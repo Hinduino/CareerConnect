@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 function Navbar({
   currentView,
@@ -127,8 +128,7 @@ function Navbar({
 
           {isAuthenticated ? (
             <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            
-            
+              <NotificationBell />
               <span>{user?.email}</span>
               <button
                 type="button"

@@ -13,6 +13,7 @@ const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
 const requireAuth = require('./middleware/auth');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
     console.error('MONGO_URI or JWT_SECRET is missing from .env');
@@ -41,6 +42,7 @@ app.use('/api/profile/picture', profilePictureRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // The profile fields that are safe to send to / accept from the client
 function toProfile(user) {
