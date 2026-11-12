@@ -28,7 +28,13 @@ const userSchema = new mongoose.Schema(
 
     // Absent until the user uploads a profile picture.
     profilePicture: { type: profilePictureSchema, default: undefined },
+    
+    // SCRUM-281: Array of JobPosting ObjectIds saved/favorited by a job seeker
+    savedJobs: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "JobPosting" }],
+      default: [],
+    },
   }
 );
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);
