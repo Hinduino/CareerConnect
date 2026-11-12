@@ -30,7 +30,6 @@ function Navbar({
 
     try {
       await register(email, password, confirmPassword, role);
-      // Sign in right away so the new user can fill in their profile
       const data = await login(email, password);
       setEmail('');
       setPassword('');
@@ -127,7 +126,9 @@ function Navbar({
           )}
 
           {isAuthenticated ? (
-            <div className="navbar-actions">
+            <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            
+            
               <span>{user?.email}</span>
               <button
                 type="button"

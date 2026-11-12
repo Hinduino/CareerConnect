@@ -48,11 +48,10 @@ function JobList({ onViewDetails }) {
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
         if (!isJobSeeker || !token) {
-            setFavoriteIds(new Set());
             return;
         }
+        let cancelled = false;
 
         fetchFavoriteJobIds(token)
             .then((ids) => {
@@ -66,6 +65,8 @@ function JobList({ onViewDetails }) {
             cancelled = true;
         };
     }, [isJobSeeker, token]);
+
+    const visibleFavoriteIds = isJobSeeker ? favoriteIds : new Set();
 
     const handleToggleFavorite = async (jobId) => {
         if (!token) return;
@@ -128,7 +129,7 @@ function JobList({ onViewDetails }) {
                     <p style={{ color: 'red' }}>{error}</p>
                 ) : jobs.length > 0 ? (
                     jobs.map((job) => {
-                        const isSaved = favoriteIds.has(job._id);
+                        const isSaved = visibleFavoriteIds.has(job._id);
                         return (
                             <div key={job._id} style={{ border: '1px solid #ccc', padding: '15px', margin: '10px 0' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
