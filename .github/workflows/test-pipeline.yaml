@@ -3,14 +3,11 @@ name: Web App Testing Pipeline
 on:
   push:
     branches: [ main ]
-    # Run on every pull request, including ones into parent story branches,
-  # so problems show up before code reaches main.
   pull_request:  
   
 jobs:
   test-suite:
     runs-on: ubuntu-latest
-
 
     services:
       mongodb:
@@ -66,10 +63,47 @@ jobs:
         env:
           MONGO_URI: mongodb://localhost:27017/careerconnect
 
-      # Stage 4: E2E Browser Testing (To be implemented)
+      # Stage 4: Code Coverage Analysis
+      - name: Run Server Tests with Coverage
+        working-directory: ./server
+        run: npm run test:coverage
+        env:
+          MONGO_URI: mongodb://localhost:27017/careerconnect
 
-      # - name: Install Playwright Browsers (For Stage 4)
+      - name: Generate Coverage Report
+        working-directory: ./server
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            node -e "const c=require('./coverage/coverage-summary.json').total;console.log('| Metric | Coverage |');console.log('|--------|----------|');console.log('| Lines | '+c.lines.pct.toFixed(2)+'% |');console.log('| Statements | '+c.statements.pct.toFixed(2)+'% |');console.log('| Functions | '+c.functions.pct.toFixed(2)+'% |');console.log('| Branches | '+c.branches.pct.toFixed(2)+'% |');" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Coverage file not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check Coverage Threshold
+        working-directory: ./server
+        if: always()
+        run: |
+          if [ ! -f coverage/coverage-summary.json ]; then
+            echo "❌ Coverage file not found"
+            exit 1
+          fi
+          node -e "const c=require('./coverage/coverage-summary.json').total;const t=75;let f=false;console.log('\\n📊 Coverage Check Results:');console.log('================================');const m={'Lines':c.lines.pct,'Statements':c.statements.pct,'Functions':c.functions.pct,'Branches':c.branches.pct};Object.entries(m).forEach(([k,v])=>{const s=v>=t?'✅':'❌';console.log(s+' '+k+': '+v.toFixed(2)+'% (threshold: '+t+'%)');if(v<t)f=true;});console.log('================================\\n');if(f){console.error('Coverage below threshold!');process.exit(1);}else{console.log('All coverage checks passed!');}"
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./server/coverage/lcov.info
+          flags: server
+          name: server-coverage
+          fail_ci_if_error: false
+
+      # Stage 5: E2E Browser Testing (To be implemented)
+      # - name: Install Playwright Browsers (For Stage 5)
       #   run: npx playwright install --with-deps
 
-      # - name: Run Stage 4 (End-to-End Tests)
+      # - name: Run Stage 5 (End-to-End Tests)
       #   run: npm run test:e2e

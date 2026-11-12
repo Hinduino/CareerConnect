@@ -30,6 +30,7 @@ const app = require('../src/server');
 const User = require('../src/models/User');
 const JobPosting = require('../src/models/JobPosting');
 const Application = require('../src/models/Application');
+const { APPLICATION_STATUSES } = require('../src/constants/applicationStatus');
 
 let mongoServer;
 
@@ -66,7 +67,7 @@ async function createApplication(applicantId, jobId, overrides = {}) {
     const application = await Application.create({
         applicant: applicantId,
         job: jobId,
-        status: 'Applied',
+        status: APPLICATION_STATUSES.APPLIED,
         resume: {
             originalName: 'resume.pdf',
             contentType: 'application/pdf',
@@ -79,7 +80,7 @@ async function createApplication(applicantId, jobId, overrides = {}) {
 }
 
 // A recruiter with one posting and one application on it.
-async function setupScenario({ status = 'Applied' } = {}) {
+async function setupScenario({ status = APPLICATION_STATUSES.APPLIED } = {}) {
     const recruiterId = await createUser({ role: 'recruiter' });
     const applicantId = await createUser();
     const jobId = await createJob(recruiterId);
@@ -120,7 +121,7 @@ beforeEach(async () => {
 // PR #50 – SCRUM-315: Recruiter application status management
 // ==========================================================================
 describe('PATCH /api/applications/:applicationId/status (recruiter status updates)', () => {
-    it.each(['Under Review', 'Interview', 'Offered', 'Rejected', 'Applied'])(
+    it.each([APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.OFFERED, APPLICATION_STATUSES.REJECTED, APPLICATION_STATUSES.APPLIED])(
         'lets the owning recruiter set the status to "%s" and saves it',
         async (status) => {
             const { recruiterId, applicationId } = await setupScenario({
@@ -211,7 +212,7 @@ describe('PATCH /api/applications/:applicationId/status (recruiter status update
 
     // Known bug: "Offer Declined" is meant to be set only by the candidate
     // (PR #51), but the recruiter's list of allowed statuses includes it.
-    it.failing('KNOWN BUG: does not let a recruiter set "Offer Declined" (only the candidate can)', async () => {
+    it('does not let a recruiter set "Offer Declined" (only the candidate can)', async () => {
         const { recruiterId, applicationId } = await setupScenario({ status: 'Offered' });
 
         const response = await updateStatus(applicationId, recruiterId, 'Offer Declined');
@@ -466,3 +467,71 @@ describe('POST /api/applications (role check)', () => {
         expect(response.status).toBe(403);
     });
 });
+    it('requires valid job ID for application status check', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/status/invalid-id')
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('requires valid application ID for resume download', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/invalid-id/resume')
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('blocks access to applications/jobs/:jobId with invalid job ID', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .get('/api/applications/jobs/invalid-id')
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('rejects status update with invalid application ID format', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .patch('/api/applications/invalid-id/status')
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Under Review' });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('returns 404 when recruiter tries to view applications for non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeJobId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/jobs/${fakeJobId}`)
+            .set('test_user_id', recruiterId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('returns 404 when trying to download non-existent application resume', async () => {
+        const applicantId = await createUser();
+        const fakeAppId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/${fakeAppId}/resume`)
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Application not found');
+    });

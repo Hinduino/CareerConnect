@@ -7,13 +7,11 @@ const jobPostingSchema = new mongoose.Schema({
     category: { type: String, required: true },
     description: { type: String, required: true },
     requirements: { type: String, required: true },
-    // The recruiter who owns this posting. Only this user may edit it.
     postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    // `timestamps: true` below gives us `createdAt` (the original date
-    // posted) and `updatedAt` (bumped whenever the recruiter modifies the
-    // posting), so the UI can always show an up-to-date "posted"/"updated"
-    // date without any extra daily job.
     isArchived: {type: Boolean, default: false},
 }, { timestamps: true });
+
+jobPostingSchema.index({ postedBy: 1, isArchived: 1 });
+jobPostingSchema.index({ isArchived: 1, createdAt: -1 });
 
 module.exports = mongoose.model('JobPosting', jobPostingSchema);

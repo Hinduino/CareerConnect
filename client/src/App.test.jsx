@@ -14,7 +14,6 @@ jest.mock('./components/Navbar', () => ({
   },
 }));
 jest.mock('./components/Hero', () => function MockHero() { return <div>Home hero</div>; });
-jest.mock('./components/MainContent', () => function MockMainContent() { return <div>Home content</div>; });
 jest.mock('./components/Footer', () => function MockFooter() { return <div>Footer</div>; });
 jest.mock('./components/Profile', () => function MockProfile() { return <div>Edit profile</div>; });
 jest.mock('./components/ProfileView', () => function MockProfileView({ onBack }) {
@@ -47,7 +46,6 @@ describe('App profile navigation', () => {
     render(<App />);
 
     expect(screen.getByText('Home hero')).toBeInTheDocument();
-    expect(screen.getByText('Home content')).toBeInTheDocument();
     expect(screen.queryByText('Profile details')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Profile navigation' }));

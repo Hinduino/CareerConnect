@@ -264,3 +264,197 @@ describe('Application submission and management', () => {
         expect(otherRecruiterDownload.status).toBe(403);
     });
 });
+
+    it('rejects application submission with invalid job ID', async () => {
+        const applicantId = await createUser();
+        const resumeId = await createResume(applicantId);
+
+        const response = await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId: 'invalid-id', resumeId });
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('rejects application status check with invalid job ID', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/status/invalid-id')
+            .set('test_user_id', applicantId);
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid job ID');
+    });
+
+    it('rejects cancellation with invalid application ID', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .delete('/api/applications/invalid-id')
+            .set('test_user_id', applicantId);
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('rejects resume download with invalid application ID', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .get('/api/applications/invalid-id/resume')
+            .set('test_user_id', applicantId);
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('blocks resume download for unauthorized users', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const otherUserId = await createUser();
+        const jobId = await createJob(recruiterId);
+        const resumeId = await createResume(applicantId);
+
+        const response = await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId, resumeId });
+
+        const applicationId = response.body.application._id;
+
+        const download = await request(app)
+            .get(`/api/applications/${applicationId}/resume`)
+            .set('test_user_id', otherUserId);
+        
+        expect(download.status).toBe(403);
+        expect(download.body.error).toBe('You do not have permission to access this resume');
+    });
+
+    it('returns 404 when trying to cancel non-existent application', async () => {
+        const applicantId = await createUser();
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .delete(`/api/applications/${fakeId}`)
+            .set('test_user_id', applicantId);
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Application not found.');
+    });
+
+    it('returns 404 when trying to download non-existent application', async () => {
+        const applicantId = await createUser();
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/${fakeId}/resume`)
+            .set('test_user_id', applicantId);
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Application not found');
+    });
+
+    it('allows recruiter to update application status', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const jobId = await createJob(recruiterId);
+        const resumeId = await createResume(applicantId);
+
+        const response = await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId, resumeId });
+
+        const applicationId = response.body.application._id;
+
+        const updateResponse = await request(app)
+            .patch(`/api/applications/${applicationId}/status`)
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Under Review' });
+        
+        expect(updateResponse.status).toBe(200);
+        expect(updateResponse.body.application.status).toBe('Under Review');
+    });
+
+    it('rejects status update with invalid application ID', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+
+        const response = await request(app)
+            .patch('/api/applications/invalid-id/status')
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Under Review' });
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid application ID');
+    });
+
+    it('allows recruiter to view applications for their own posting', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const jobId = await createJob(recruiterId);
+        const resumeId = await createResume(applicantId);
+
+        await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId, resumeId });
+
+        const response = await request(app)
+            .get(`/api/applications/jobs/${jobId}`)
+            .set('test_user_id', recruiterId);
+        
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(1);
+        expect(response.body[0].applicant.name).toBe('Test User');
+    });
+
+    it('prevents recruiter from viewing applications for other postings', async () => {
+        const recruiter1Id = await createUser({ role: 'recruiter' });
+        const recruiter2Id = await createUser({ role: 'recruiter' });
+        const jobId = await createJob(recruiter1Id);
+
+        const response = await request(app)
+            .get(`/api/applications/jobs/${jobId}`)
+            .set('test_user_id', recruiter2Id);
+        
+        expect(response.status).toBe(403);
+        expect(response.body.error).toContain('can only view applications for your own');
+    });
+
+    it('returns 404 when recruiter requests non-existent job', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const fakeId = new mongoose.Types.ObjectId();
+
+        const response = await request(app)
+            .get(`/api/applications/jobs/${fakeId}`)
+            .set('test_user_id', recruiterId);
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Job not found');
+    });
+
+    it('allows applicant to download their own resume', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const jobId = await createJob(recruiterId);
+        const resumeId = await createResume(applicantId);
+
+        const response = await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId, resumeId });
+
+        const applicationId = response.body.application._id;
+
+        const download = await request(app)
+            .get(`/api/applications/${applicationId}/resume`)
+            .set('test_user_id', applicantId)
+            .buffer(true)
+            .parse(parseBuffer);
+        
+        expect(download.status).toBe(200);
+        expect(Buffer.compare(download.body, Buffer.from('test'))).toBe(0);
+    });

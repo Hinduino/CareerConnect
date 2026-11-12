@@ -15,3 +15,9 @@ npm-debug.log*
 # IDE / Editor
 .vscode/
 .idea/
+# Code Coverage
+coverage/
+*.lcov
+
+# Test coverage reports
+.nyc_output/

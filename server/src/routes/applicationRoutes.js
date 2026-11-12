@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
+const { sanitizeFilename } = require('../utils/fileUtils');
 const {
   createApplication,
   cancelApplication,
@@ -14,16 +15,10 @@ const {
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 
-// Helper to sanitize filename when serving resumes
-function sanitizeFilename(name) {
-  return name.replace(/[\r\n"]/g, '').trim() || 'resume';
-}
-
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
 // ==========================================
 
-// GET /api/applications/history - Candidate application history (sorted newest first)
 router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const applications = await Application.find({ applicant: req.user.id })
@@ -37,7 +32,6 @@ router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) 
   }
 });
 
-// PATCH /api/applications/:id/decline-offer - Candidate declines an offered job
 router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -49,7 +43,6 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
   }
 });
 
-// GET /api/applications/my - Job seekers view their applications
 router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const applications = await getMyApplications(req.user.id);
@@ -60,7 +53,6 @@ router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
   }
 });
 
-// GET /api/applications/status/:jobId - Check if user already applied
 router.get('/status/:jobId', requireAuth, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.jobId)) {
@@ -75,13 +67,16 @@ router.get('/status/:jobId', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/applications - Submit a new job application (blocks archived postings)
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { jobId, resumeId } = req.body;
 
     if (!jobId || !resumeId) {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
+    }
+
+    if (!mongoose.isValidObjectId(jobId)) {
+      return res.status(400).json({ error: 'Invalid job ID' });
     }
 
     const job = await JobPosting.findById(jobId);
@@ -119,7 +114,6 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/applications/:applicationId - Cancel / withdraw an application
 router.delete('/:applicationId', requireAuth, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.applicationId)) {
@@ -141,7 +135,6 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
 // RECRUITER & RESUME ROUTES
 // ==========================================
 
-// GET /api/applications/jobs/:jobId - Recruiters view applications for their posting
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.jobId)) {
@@ -164,7 +157,6 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
   }
 });
 
-// GET /api/applications/:applicationId/resume - Download attached resume
 router.get('/:applicationId/resume', requireAuth, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.applicationId)) {
@@ -200,7 +192,6 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/applications/:applicationId/status - Recruiter updates application status
 router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.applicationId)) {

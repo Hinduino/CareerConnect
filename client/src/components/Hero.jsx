@@ -1,19 +1,20 @@
-function Hero() {
+function Hero({ onJobsClick }) {
   return (
     <section className="hero-section">
       <div className="hero-content">
-        {/* Main Headline*/}
-        <h1>some text that will be replaced eventually</h1>
-
-        {/* Subtitle */}
+        <span className="hero-badge">Find your next opportunity</span>
+        <h1>Connect with careers that fit who you are</h1>
         <p>
-          subtext that will be replaced eventually
+          CareerConnect brings job seekers and recruiters together in one place.
+          Browse open roles, apply with your saved resume, and track every
+          application from a single dashboard.
         </p>
-
-
+        <div className="hero-actions">
+          <button type="button" className="btn-primary" onClick={onJobsClick}>
+            Browse Jobs
+          </button>
+        </div>
       </div>
-
-
     </section>
   )
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
-import MainContent from './components/MainContent'
 import Footer from './components/Footer'
 import Profile from './components/Profile'
 import ProfileView from './components/ProfileView'
@@ -89,10 +88,7 @@ function App() {
           onBack={() => setCurrentView('jobs')}
         />
       ) : (
-        <>
-          <Hero />
-          <MainContent />
-        </>
+        <Hero onJobsClick={() => setCurrentView('jobs')} />
       )}
 
       <Footer />

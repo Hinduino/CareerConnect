@@ -10,6 +10,7 @@ jest.mock("./resumeQueries", () => ({
 const Application = require("../models/Application");
 const { findResumeByIdForUser } = require("./resumeQueries");
 const { createApplication, cancelApplication, getApplicationStatus } = require("./applicationqueries");
+const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 
 const userId = "507f1f77bcf86cd799439011";
 const jobId = "507f1f77bcf86cd799439033";
@@ -63,7 +64,7 @@ describe("applicationqueries", () => {
       expect(Application.create).toHaveBeenCalledWith({
         applicant: userId,
         job: jobId,
-        status: "Applied",
+        status: APPLICATION_STATUSES.APPLIED,
         resume: {
           originalName: resume.originalName,
           contentType: resume.contentType,
@@ -94,7 +95,7 @@ describe("applicationqueries", () => {
 
   describe("getApplicationStatus", () => {
     it("reports an existing application", async () => {
-      const select = jest.fn().mockResolvedValue({ _id: applicationId, status: "Applied" });
+      const select = jest.fn().mockResolvedValue({ _id: applicationId, status: APPLICATION_STATUSES.APPLIED });
       Application.findOne.mockReturnValue({ select });
 
       await expect(getApplicationStatus(userId, jobId)).resolves.toEqual({

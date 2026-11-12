@@ -17,6 +17,7 @@ jest.mock("./resumeQueries", () => ({
 
 const Application = require("../models/Application");
 const JobPosting = require("../models/JobPosting");
+const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const {
   updateApplicationStatus,
   declineJobOffer,
@@ -57,10 +58,10 @@ describe("SCRUM-106 application queries", () => {
   });
 
   describe("updateApplicationStatus (PR #50)", () => {
-    it.each(["Applied", "Under Review", "Interview", "Offered", "Rejected"])(
+    it.each([APPLICATION_STATUSES.APPLIED, APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.OFFERED, APPLICATION_STATUSES.REJECTED])(
       "lets the owning recruiter set \"%s\"",
       async (status) => {
-        const application = fakeApplication("Applied");
+        const application = fakeApplication(APPLICATION_STATUSES.APPLIED);
         Application.findById.mockResolvedValue(application);
         JobPosting.findById.mockResolvedValue({ postedBy: recruiterId });
 
@@ -83,7 +84,7 @@ describe("SCRUM-106 application queries", () => {
     );
 
     it("rejects 'Cancelled', which only the system should set", async () => {
-      await expect(updateApplicationStatus(recruiterId, applicationId, "Cancelled")).rejects.toThrow(
+      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.CANCELLED)).rejects.toThrow(
         "Invalid application status."
       );
     });
@@ -91,58 +92,58 @@ describe("SCRUM-106 application queries", () => {
     it("throws when the application does not exist", async () => {
       Application.findById.mockResolvedValue(null);
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, "Interview")).rejects.toThrow(
+      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)).rejects.toThrow(
         "Application not found."
       );
     });
 
     it("refuses a recruiter who does not own the job, without saving", async () => {
-      const application = fakeApplication("Applied");
+      const application = fakeApplication(APPLICATION_STATUSES.APPLIED);
       Application.findById.mockResolvedValue(application);
       JobPosting.findById.mockResolvedValue({ postedBy: otherRecruiterId });
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, "Rejected")).rejects.toThrow(
+      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.REJECTED)).rejects.toThrow(
         "Not authorized to update this application."
       );
-      expect(application.status).toBe("Applied");
+      expect(application.status).toBe(APPLICATION_STATUSES.APPLIED);
       expect(application.save).not.toHaveBeenCalled();
     });
 
     it("refuses when the job posting has been deleted", async () => {
-      Application.findById.mockResolvedValue(fakeApplication("Applied"));
+      Application.findById.mockResolvedValue(fakeApplication(APPLICATION_STATUSES.APPLIED));
       JobPosting.findById.mockResolvedValue(null);
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, "Interview")).rejects.toThrow(
+      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)).rejects.toThrow(
         "Not authorized to update this application."
       );
     });
 
     // Known bug: "Offer Declined" should only come from the candidate (PR #51).
-    it.failing("KNOWN BUG: rejects 'Offer Declined' from a recruiter", async () => {
-      Application.findById.mockResolvedValue(fakeApplication("Offered"));
+    it("rejects 'Offer Declined' from a recruiter (only candidate can set this)", async () => {
+      Application.findById.mockResolvedValue(fakeApplication(APPLICATION_STATUSES.OFFERED));
       JobPosting.findById.mockResolvedValue({ postedBy: recruiterId });
 
       await expect(
-        updateApplicationStatus(recruiterId, applicationId, "Offer Declined")
+        updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.OFFER_DECLINED)
       ).rejects.toThrow("Invalid application status.");
     });
   });
 
   describe("declineJobOffer (PR #51)", () => {
     it("changes Offered to 'Offer Declined', records the time, and saves", async () => {
-      const application = fakeApplication("Offered");
+      const application = fakeApplication(APPLICATION_STATUSES.OFFERED);
       Application.findOne.mockResolvedValue(application);
 
       const before = Date.now();
       const result = await declineJobOffer(applicationId, applicantId);
 
       expect(Application.findOne).toHaveBeenCalledWith({ _id: applicationId, applicant: applicantId });
-      expect(result.status).toBe("Offer Declined");
+      expect(result.status).toBe(APPLICATION_STATUSES.OFFER_DECLINED);
       expect(result.declinedAt.getTime()).toBeGreaterThanOrEqual(before);
       expect(application.save).toHaveBeenCalledTimes(1);
     });
 
-    it.each(["Applied", "Under Review", "Interview", "Rejected", "Offer Declined"])(
+    it.each([APPLICATION_STATUSES.APPLIED, APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.REJECTED, APPLICATION_STATUSES.OFFER_DECLINED])(
       "refuses when the status is \"%s\", without saving",
       async (status) => {
         const application = fakeApplication(status);
