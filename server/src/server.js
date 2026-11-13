@@ -14,6 +14,7 @@ const User = require('./models/User');
 const jwt = require('jsonwebtoken');
 const requireAuth = require('./middleware/auth');
 const notificationRoutes = require('./routes/notificationRoutes');
+const { startApplicationReminderScheduler } = require('./services/applicationReminderService');
 
 if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
     console.error('MONGO_URI or JWT_SECRET is missing from .env');
@@ -25,7 +26,7 @@ const PORT = process.env.PORT || 3000;
 
 
 if (process.env.NODE_ENV !== 'test') {
-    connectDB();
+    connectDB().then(startApplicationReminderScheduler);
 }
 
 // Middleware

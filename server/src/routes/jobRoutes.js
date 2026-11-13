@@ -21,6 +21,16 @@ function validateJobFields(body) {
     return null;
 }
 
+function validateDueDate(dueDate) {
+    if (dueDate === undefined || dueDate === null || dueDate === '') {
+        return null;
+    }
+
+    return Number.isNaN(new Date(dueDate).getTime())
+        ? 'dueDate must be a valid date'
+        : null;
+}
+
 function validateJobId(req, res, next) {
     if (!mongoose.isValidObjectId(req.params.id)) {
         return res.status(400).json({ error: 'Invalid job ID' });
@@ -182,7 +192,12 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
             return res.status(400).json({ error: validationError });
         }
 
-        const { title, company, location, category, description, requirements } = req.body;
+        const dueDateError = validateDueDate(req.body.dueDate);
+        if (dueDateError) {
+            return res.status(400).json({ error: dueDateError });
+        }
+
+        const { title, company, location, category, description, requirements, dueDate } = req.body;
         const job = await JobPosting.create({
             title: title.trim(),
             company: company.trim(),
@@ -190,6 +205,7 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
             category: category.trim(),
             description: description.trim(),
             requirements: requirements.trim(),
+            dueDate: dueDate ? new Date(dueDate) : null,
             postedBy: req.user.id,
             isArchived: false,
         });
@@ -216,13 +232,21 @@ router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (
             return res.status(400).json({ error: validationError });
         }
 
-        const { title, company, location, category, description, requirements } = req.body;
+        const dueDateError = validateDueDate(req.body.dueDate);
+        if (dueDateError) {
+            return res.status(400).json({ error: dueDateError });
+        }
+
+        const { title, company, location, category, description, requirements, dueDate } = req.body;
         job.title = title.trim();
         job.company = company.trim();
         job.location = location.trim();
         job.category = category.trim();
         job.description = description.trim();
         job.requirements = requirements.trim();
+        if (Object.prototype.hasOwnProperty.call(req.body, 'dueDate')) {
+            job.dueDate = dueDate ? new Date(dueDate) : null;
+        }
         await job.save();
 
         res.status(200).json(job);

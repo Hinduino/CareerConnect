@@ -7,6 +7,7 @@ const jobPostingSchema = new mongoose.Schema({
     category: { type: String, required: true },
     description: { type: String, required: true },
     requirements: { type: String, required: true },
+    dueDate: { type: Date, default: null },
     postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     isArchived: {type: Boolean, default: false},
 }, { timestamps: true });
