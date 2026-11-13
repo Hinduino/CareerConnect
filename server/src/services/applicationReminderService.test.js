@@ -12,7 +12,10 @@ const Application = require("../models/Application");
 const JobPosting = require("../models/JobPosting");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const { createNotification } = require("../queries/notificationQueries");
-const { sendUpcomingApplicationReminders } = require("./applicationReminderService");
+const {
+  sendUpcomingApplicationReminders,
+  startApplicationReminderScheduler,
+} = require("./applicationReminderService");
 
 const jobId = "507f1f77bcf86cd799439033";
 const applicationId = "507f1f77bcf86cd799439044";
@@ -36,6 +39,10 @@ describe("application deadline reminders", () => {
     jest.clearAllMocks();
     JobPosting.find.mockResolvedValue([job]);
     Application.find.mockResolvedValue([application]);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it.each([7, 3, 1])(
@@ -92,5 +99,52 @@ describe("application deadline reminders", () => {
         ],
       },
     });
+  });
+
+  it("runs immediately, schedules daily work, and skips overlapping runs", async () => {
+    let resolveJobs;
+    JobPosting.find
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveJobs = resolve;
+      }))
+      .mockResolvedValue([]);
+    const interval = jest.spyOn(global, "setInterval").mockReturnValue(123);
+
+    const timerId = startApplicationReminderScheduler();
+    const scheduledRun = interval.mock.calls[0][0];
+
+    expect(timerId).toBe(123);
+    expect(interval).toHaveBeenCalledWith(expect.any(Function), 24 * 60 * 60 * 1000);
+    expect(JobPosting.find).toHaveBeenCalledTimes(1);
+
+    await scheduledRun();
+    expect(JobPosting.find).toHaveBeenCalledTimes(1);
+
+    resolveJobs([]);
+    await new Promise((resolve) => setImmediate(resolve));
+    await scheduledRun();
+
+    expect(JobPosting.find).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs reminder failures and allows the next scheduled run", async () => {
+    const error = new Error("database unavailable");
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    JobPosting.find
+      .mockRejectedValueOnce(error)
+      .mockResolvedValue([]);
+    const interval = jest.spyOn(global, "setInterval").mockReturnValue(123);
+
+    startApplicationReminderScheduler();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Failed to send application deadline reminders:",
+      error
+    );
+
+    await interval.mock.calls[0][0]();
+
+    expect(JobPosting.find).toHaveBeenCalledTimes(2);
   });
 });

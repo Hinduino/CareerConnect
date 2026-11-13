@@ -13,6 +13,7 @@ const request = require("supertest");
 const {
   getNotificationsForUser,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
 } = require("../queries/notificationQueries");
 const notificationRoutes = require("./notificationRoutes");
 
@@ -26,6 +27,10 @@ app.use("/notifications", notificationRoutes);
 describe("notification routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("returns notifications associated with the authenticated user", async () => {
@@ -50,6 +55,20 @@ describe("notification routes", () => {
       notifications: [expect.objectContaining({ recipient: userBId, isRead: false })],
       unreadCount: 1,
     });
+  });
+
+  it("returns a server error when notifications cannot be fetched", async () => {
+    const error = new Error("database unavailable");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    getNotificationsForUser.mockRejectedValue(error);
+
+    const response = await request(app)
+      .get("/notifications")
+      .set("x-test-user-id", userBId);
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Server error fetching notifications" });
+    expect(console.error).toHaveBeenCalledWith("Error fetching notifications:", error);
   });
 
   it("returns unread notifications and marks a selected notification as read", async () => {
@@ -104,5 +123,55 @@ describe("notification routes", () => {
     expect(response.body).toEqual({ error: "Notification not found." });
     expect(markNotificationAsRead).toHaveBeenCalledWith(userBId, notificationId);
     expect(response.body.notification).toBeUndefined();
+  });
+
+  it("marks every unread notification as read", async () => {
+    markAllNotificationsAsRead.mockResolvedValue(undefined);
+
+    const response = await request(app)
+      .patch("/notifications/read-all")
+      .set("x-test-user-id", userBId);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ message: "All notifications marked as read." });
+    expect(markAllNotificationsAsRead).toHaveBeenCalledWith(userBId);
+  });
+
+  it("returns a server error when marking all notifications as read fails", async () => {
+    const error = new Error("database unavailable");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    markAllNotificationsAsRead.mockRejectedValue(error);
+
+    const response = await request(app)
+      .patch("/notifications/read-all")
+      .set("x-test-user-id", userBId);
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Server error updating notifications" });
+    expect(console.error).toHaveBeenCalledWith("Error marking all notifications as read:", error);
+  });
+
+  it("rejects a malformed notification ID before querying", async () => {
+    const response = await request(app)
+      .patch("/notifications/not-an-object-id/read")
+      .set("x-test-user-id", userBId);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Invalid notification ID" });
+    expect(markNotificationAsRead).not.toHaveBeenCalled();
+  });
+
+  it("returns a server error when marking a notification as read fails unexpectedly", async () => {
+    const error = new Error("database unavailable");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    markNotificationAsRead.mockRejectedValue(error);
+
+    const response = await request(app)
+      .patch(`/notifications/${notificationId}/read`)
+      .set("x-test-user-id", userBId);
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Server error updating notification" });
+    expect(console.error).toHaveBeenCalledWith("Error marking notification as read:", error);
   });
 });
