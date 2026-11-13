@@ -15,6 +15,7 @@ function Navbar({
   onPostingsClick,
   onRecruiterApplicationsClick,
   onApplicationsClick,
+  onOpenNotification,
 }) {
   const { isAuthenticated, user, login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
@@ -128,7 +129,7 @@ function Navbar({
 
           {isAuthenticated ? (
             <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <NotificationBell />
+              <NotificationBell onOpenNotification={onOpenNotification} />
               <span>{user?.email}</span>
               <button
                 type="button"

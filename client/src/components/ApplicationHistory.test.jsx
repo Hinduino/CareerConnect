@@ -199,6 +199,16 @@ describe('ApplicationHistory', () => {
     expect(screen.queryByRole('heading', { name: 'Data Analyst' })).not.toBeInTheDocument();
   });
 
+  it('opens the application targeted by a notification', async () => {
+    fetchMyApplications.mockResolvedValue(sampleApplications);
+    render(<ApplicationHistory selectedApplicationId="a2" />);
+
+    expect(await screen.findAllByText('Data Analyst')).toHaveLength(2);
+
+    expect(await screen.findByText('Job Description')).toBeInTheDocument();
+    expect(screen.getAllByText('About the Data Analyst role')).toHaveLength(2);
+  });
+
   // Known bug: the page loads data from /api/applications/my, which does not
   // include the job description, instead of /api/applications/history, which
   // does. So every row and the details panel say there is no description.

@@ -17,6 +17,17 @@ function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
   const [currentView, setCurrentView] = useState('home');
   const [selectedJobId, setSelectedJobId] = useState(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState(null);
+
+  const handleOpenNotification = (notification) => {
+    if (notification.relatedApplication) {
+      setSelectedApplicationId(notification.relatedApplication);
+      setCurrentView(user?.role === 'recruiter' ? 'recruiter-applications' : 'my-applications');
+    } else if (notification.relatedJob) {
+      setSelectedJobId(notification.relatedJob);
+      setCurrentView('job-detail');
+    }
+  };
 
   const handleSaveProfile = async (profile) => {
     try {
@@ -51,7 +62,11 @@ function App() {
         onDashboardClick={() => setCurrentView('recruiter-dashboard')}
         onPostingsClick={() => setCurrentView('recruiter-postings')}
         onRecruiterApplicationsClick={() => setCurrentView('recruiter-applications')}
-        onApplicationsClick={() => setCurrentView('my-applications')}
+        onApplicationsClick={() => {
+          setSelectedApplicationId(null);
+          setCurrentView('my-applications');
+        }}
+        onOpenNotification={handleOpenNotification}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -73,6 +88,7 @@ function App() {
           user?.role === 'recruiter' ? (
         <RecruiterDashboard
           currentView={currentView}
+          selectedApplicationId={selectedApplicationId}
           onBack={() => setCurrentView('home')}
         />
       ) : currentView === 'saved-jobs' && isAuthenticated && user?.role === 'job_seeker' ? (
@@ -83,7 +99,10 @@ function App() {
           }}
         />
       ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
-        <ApplicationHistory />
+        <ApplicationHistory
+          selectedApplicationId={selectedApplicationId}
+          onClearSelectedApplication={() => setSelectedApplicationId(null)}
+        />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {
