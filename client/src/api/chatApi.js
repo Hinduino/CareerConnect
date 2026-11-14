@@ -1,16 +1,17 @@
 const API_BASE = "http://localhost:3000/api";
 
-export async function sendChatMessage(messages, token, document) {
+export async function sendChatMessage(messages, token, document, profileResumeId) {
   const headers = {};
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
   let body;
-  if (document) {
+  if (document || profileResumeId) {
     body = new FormData();
     body.append("messages", JSON.stringify(messages));
-    body.append("document", document);
+    if (document) body.append("document", document);
+    if (profileResumeId) body.append("profileResumeId", profileResumeId);
   } else {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify({ messages });

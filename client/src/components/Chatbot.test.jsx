@@ -3,17 +3,22 @@ const { fireEvent, render, screen, waitFor } = require('@testing-library/react')
 jest.mock('../api/chatApi', () => ({
   sendChatMessage: jest.fn(),
 }));
+jest.mock('../api/resumeApi', () => ({
+  fetchResumes: jest.fn(),
+}));
 jest.mock('../context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
 const Chatbot = require('./Chatbot').default;
 const { sendChatMessage } = require('../api/chatApi');
+const { fetchResumes } = require('../api/resumeApi');
 const { useAuth } = require('../context/AuthContext');
 
 describe('CareerConnect chatbot', () => {
   beforeEach(() => {
     sendChatMessage.mockReset();
+    fetchResumes.mockReset().mockReturnValue(new Promise(() => {}));
     useAuth.mockReturnValue({ token: 'session-token' });
   });
 
@@ -36,7 +41,7 @@ describe('CareerConnect chatbot', () => {
     expect(sendChatMessage).toHaveBeenCalledWith([
       expect.objectContaining({ role: 'assistant' }),
       { role: 'user', content: 'How can I improve my resume?' },
-    ], 'session-token', null);
+    ], 'session-token', null, '');
   });
 
   it('expands to full screen and returns to the floating panel', () => {
@@ -73,10 +78,41 @@ describe('CareerConnect chatbot', () => {
       expect(sendChatMessage).toHaveBeenCalledWith(
         expect.any(Array),
         'session-token',
-        document
+        document,
+        ''
       );
     });
     expect(screen.getByText('resume.docx')).toBeInTheDocument();
+  });
+
+  it('lets the signed-in user select a saved profile resume for analysis', async () => {
+    fetchResumes.mockResolvedValue([
+      { id: 'resume-123', originalName: 'profile-resume.pdf' },
+    ]);
+    sendChatMessage.mockResolvedValue('Summary:\nExperienced frontend developer.\n\nStrengths:\n- Strong React skills.');
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    fireEvent.change(await screen.findByLabelText('Resume from your profile'), {
+      target: { value: 'resume-123' },
+    });
+    expect(screen.getByText('Using profile resume: profile-resume.pdf')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Your message'), {
+      target: { value: 'Review my resume.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(sendChatMessage).toHaveBeenCalledWith(
+        expect.any(Array),
+        'session-token',
+        null,
+        'resume-123'
+      );
+    });
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByRole('list')).toHaveTextContent('Strong React skills.');
   });
 
   it('rejects unsupported document extensions and MIME types', () => {

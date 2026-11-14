@@ -7,12 +7,14 @@ process.env.MONGO_URI = 'mongodb://localhost:27017/';
 jest.mock('../src/models/User', () => ({ findById: jest.fn() }));
 jest.mock('../src/models/JobPosting', () => ({ find: jest.fn() }));
 jest.mock('../src/models/Application', () => ({ find: jest.fn() }));
+jest.mock('../src/models/Resume', () => ({ findOne: jest.fn() }));
 jest.mock('../src/utils/documentText', () => jest.fn());
 
 const app = require('../src/server');
 const User = require('../src/models/User');
 const JobPosting = require('../src/models/JobPosting');
 const Application = require('../src/models/Application');
+const Resume = require('../src/models/Resume');
 const extractDocumentText = require('../src/utils/documentText');
 
 function createQuery(result) {
@@ -21,7 +23,8 @@ function createQuery(result) {
         sort: jest.fn(() => query),
         limit: jest.fn(() => query),
         populate: jest.fn(() => query),
-        lean: jest.fn().mockResolvedValue(result)
+        lean: jest.fn().mockResolvedValue(result),
+        then: (resolve, reject) => Promise.resolve(result).then(resolve, reject)
     };
     return query;
 }
@@ -52,6 +55,7 @@ describe('AI chat route', () => {
         ]));
         User.findById.mockReturnValue(createQuery(null));
         Application.find.mockReturnValue(createQuery([]));
+        Resume.findOne.mockReturnValue(createQuery(null));
     });
 
     it('uses public jobs in the chat context without requiring authentication', async () => {
@@ -168,6 +172,72 @@ describe('AI chat route', () => {
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('resume.docx');
         expect(getKiloRequest(fetchMock).messages).toHaveLength(2);
         expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1000);
+    });
+
+    it('extracts only the authenticated user\'s selected profile resume', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const resumeId = '507f1f77bcf86cd799439012';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        const resume = {
+            originalName: 'profile-resume.pdf',
+            contentType: 'application/pdf',
+            data: Buffer.from('%PDF-1.7 profile resume')
+        };
+        Resume.findOne.mockReturnValue(createQuery(resume));
+        const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: 'Your resume shows strong experience.' } }]
+            })
+        });
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Review my profile resume.' }]))
+            .field('profileResumeId', resumeId);
+
+        expect(response.status).toBe(200);
+        expect(Resume.findOne).toHaveBeenCalledWith({ _id: resumeId, user: userId });
+        expect(extractDocumentText).toHaveBeenCalledWith({
+            originalname: 'profile-resume.pdf',
+            mimetype: 'application/pdf',
+            buffer: resume.data
+        });
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Candidate has five years');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('profile-resume.pdf');
+    });
+
+    it('does not expose a profile resume to unauthenticated callers', async () => {
+        const response = await request(app)
+            .post('/api/chat')
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Review my resume.' }]))
+            .field('profileResumeId', '507f1f77bcf86cd799439012');
+
+        expect(response.status).toBe(401);
+        expect(Resume.findOne).not.toHaveBeenCalled();
+    });
+
+    it('returns a clear error when the selected profile resume cannot be analyzed', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        Resume.findOne.mockReturnValue(createQuery({
+            originalName: 'scan.pdf',
+            contentType: 'application/pdf',
+            data: Buffer.from('%PDF-1.7')
+        }));
+        extractDocumentText.mockRejectedValue(new Error('No readable text was found in the document'));
+        const fetchMock = jest.spyOn(global, 'fetch');
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Review my resume.' }]))
+            .field('profileResumeId', '507f1f77bcf86cd799439012');
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toMatch(/No readable text/);
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('limits conversation history when a document is attached', async () => {

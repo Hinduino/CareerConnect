@@ -11,6 +11,7 @@ const {
   replaceResumeById,
   deleteResumeById,
 } = require("../queries/resumeQueries");
+const { hasSupportedDocumentSignature } = require("../utils/documentFile");
 
 const router = express.Router();
 
@@ -66,6 +67,11 @@ router.post("/", upload.single("resume"), async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file was uploaded" });
     }
+    if (!hasSupportedDocumentSignature(req.file)) {
+      return res.status(400).json({
+        error: "The file contents do not match a supported PDF, DOC, or DOCX document.",
+      });
+    }
 
     const resume = await createResume(req.user.id, toResumeFields(req.file));
     res.status(201).json(toResumeMetadata(resume));
@@ -81,6 +87,11 @@ router.put("/:id", upload.single("resume"), async (req, res, next) => {
     }
     if (!req.file) {
       return res.status(400).json({ error: "No file was uploaded" });
+    }
+    if (!hasSupportedDocumentSignature(req.file)) {
+      return res.status(400).json({
+        error: "The file contents do not match a supported PDF, DOC, or DOCX document.",
+      });
     }
 
     const resume = await replaceResumeById(req.params.id, req.user.id, toResumeFields(req.file));

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sendChatMessage } from '../api/chatApi';
+import { fetchResumes } from '../api/resumeApi';
 import { useAuth } from '../context/AuthContext';
 
 const WELCOME_MESSAGE = {
@@ -24,6 +25,62 @@ function validateDocument(file) {
   return null;
 }
 
+function renderAssistantContent(content) {
+  const lines = content.split(/\r?\n/);
+  const blocks = [];
+  let paragraph = [];
+  let list = [];
+  let listType = null;
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      blocks.push(<p key={`paragraph-${blocks.length}`}>{paragraph.join(' ')}</p>);
+      paragraph = [];
+    }
+  };
+  const flushList = () => {
+    if (list.length) {
+      const List = listType === 'ordered' ? 'ol' : 'ul';
+      blocks.push(
+        <List key={`list-${blocks.length}`}>
+          {list.map((item, index) => <li key={index}>{item}</li>)}
+        </List>
+      );
+      list = [];
+      listType = null;
+    }
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    const heading = trimmed.match(/^#{1,3}\s+(.+)$|^([A-Z][^:]{0,40}):$/);
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    const itemType = bullet ? 'unordered' : numbered ? 'ordered' : null;
+
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+    } else if (heading) {
+      flushParagraph();
+      flushList();
+      blocks.push(<h3 key={`heading-${blocks.length}`}>{heading[1] || heading[2]}</h3>);
+    } else if (itemType) {
+      flushParagraph();
+      if (listType && listType !== itemType) flushList();
+      listType = itemType;
+      list.push((bullet || numbered)[1]);
+    } else {
+      flushList();
+      paragraph.push(trimmed);
+    }
+  });
+
+  flushParagraph();
+  flushList();
+  return blocks;
+}
+
 function Chatbot() {
   const { token } = useAuth();
   const fileInputRef = useRef(null);
@@ -34,6 +91,32 @@ function Chatbot() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
   const [document, setDocument] = useState(null);
+  const [profileResumeData, setProfileResumeData] = useState(null);
+  const [profileResumeSelection, setProfileResumeSelection] = useState(null);
+  const currentProfileResumeData = profileResumeData?.token === token ? profileResumeData : null;
+  const profileResumes = currentProfileResumeData?.resumes || [];
+  const profileResumesLoading = Boolean(isOpen && token && !currentProfileResumeData);
+  const profileResumesLoadError = Boolean(currentProfileResumeData?.error);
+  const profileResumeId = profileResumeSelection?.token === token
+    ? profileResumeSelection.id
+    : '';
+
+  useEffect(() => {
+    if (!isOpen || !token) return undefined;
+
+    let active = true;
+    fetchResumes(token)
+      .then((resumes) => {
+        if (active) setProfileResumeData({ token, resumes, error: '' });
+      })
+      .catch((resumeError) => {
+        if (active) setProfileResumeData({ token, resumes: [], error: resumeError.message });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, token]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -48,7 +131,7 @@ function Chatbot() {
     setIsSending(true);
 
     try {
-      const reply = await sendChatMessage(conversation, token, document);
+      const reply = await sendChatMessage(conversation, token, document, profileResumeId);
       setMessages((currentMessages) => [
         ...currentMessages,
         { role: 'assistant', content: reply }
@@ -99,12 +182,14 @@ function Chatbot() {
 
           <div className="chatbot-messages" aria-live="polite">
             {messages.map((message, index) => (
-              <p
+              <div
                 className={`chatbot-message chatbot-message-${message.role}`}
                 key={`${message.role}-${index}`}
               >
-                {message.content}
-              </p>
+                {message.role === 'assistant'
+                  ? renderAssistantContent(message.content)
+                  : message.content}
+              </div>
             ))}
             {isSending && (
               <p className="chatbot-status" role="status">Assistant is typing...</p>
@@ -148,6 +233,7 @@ function Chatbot() {
 
                 setError('');
                 setDocument(file);
+                setProfileResumeSelection(null);
               }}
               disabled={isSending}
             />
@@ -169,6 +255,42 @@ function Chatbot() {
               Send
             </button>
           </form>
+          {token && (
+            <div className="chatbot-resume">
+              <label htmlFor="chatbot-profile-resume">Resume from your profile</label>
+              <select
+                id="chatbot-profile-resume"
+                value={profileResumeId}
+                onChange={(event) => {
+                  setProfileResumeSelection(event.target.value
+                    ? { token, id: event.target.value }
+                    : null);
+                  if (event.target.value) {
+                    setDocument(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }
+                }}
+                disabled={isSending || profileResumesLoading || profileResumesLoadError || profileResumes.length === 0 || Boolean(document)}
+              >
+                <option value="">
+                  {profileResumesLoading
+                    ? 'Loading saved resumes...'
+                    : profileResumesLoadError
+                      ? 'Saved resumes unavailable'
+                      : 'Do not use a saved resume'}
+                </option>
+                {profileResumes.map((resume) => (
+                  <option key={resume.id} value={resume.id}>{resume.originalName}</option>
+                ))}
+              </select>
+              {!profileResumesLoading && !profileResumesLoadError && profileResumes.length === 0 && (
+                <span>No saved resumes found in your profile.</span>
+              )}
+              {profileResumesLoadError && (
+                <span className="chatbot-error" role="alert">{currentProfileResumeData.error}</span>
+              )}
+            </div>
+          )}
           {document && (
             <div className="chatbot-document">
               <span title={document.name}>{document.name}</span>
@@ -184,8 +306,22 @@ function Chatbot() {
               </button>
             </div>
           )}
+          {profileResumeId && (
+            <div className="chatbot-document">
+              <span>
+                Using profile resume: {profileResumes.find((resume) => resume.id === profileResumeId)?.originalName}
+              </span>
+              <button
+                type="button"
+                onClick={() => setProfileResumeSelection(null)}
+                aria-label="Stop using profile resume"
+              >
+                ×
+              </button>
+            </div>
+          )}
           <p className="chatbot-document-note">
-            PDF, DOC, and DOCX up to 5MB. Up to 12,000 text characters are sent to Kilo AI while attached.
+            PDF, DOC, and DOCX up to 5MB. The original file is not forwarded; extracted resume text (up to 12,000 characters) and relevant CareerConnect context are sent to Kilo AI.
           </p>
         </section>
       )}
