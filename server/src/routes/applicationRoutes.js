@@ -14,6 +14,7 @@ const {
 } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
+const { createNotification } = require('../queries/notificationQueries');
 
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
@@ -36,6 +37,18 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
   try {
     const { id } = req.params;
     const updated = await declineJobOffer(id, req.user.id);
+    const job = await JobPosting.findById(updated.job);
+    if (job && job.postedBy) {
+      await createNotification({
+        recipient: job.postedBy,
+        type: 'APPLICATION_STATUS',
+        title: 'Job Offer Declined',
+        message: `A candidate declined the offer for "${job.title}" at ${job.company}.`,
+        relatedJob: job._id,
+        relatedApplication: updated._id,
+      });
+    }
+
     res.status(200).json({ message: 'Offer declined successfully.', application: updated });
   } catch (err) {
     console.error('Error declining offer:', err.message);
@@ -88,6 +101,18 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     const application = await createApplication(req.user.id, jobId, resumeId);
+
+    // SCRUM-293: Notify the recruiter who posted the job about the new application
+    if (job.postedBy) {
+      await createNotification({
+        recipient: job.postedBy,
+        type: 'APPLICATION_SUBMITTED',
+        title: 'New Application Received',
+        message: `A candidate applied for "${job.title}" at ${job.company}.`,
+        relatedJob: job._id,
+        relatedApplication: application._id,
+      });
+    }
 
     res.status(201).json({
       message: 'Application submitted successfully!',
@@ -205,6 +230,18 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
       req.params.applicationId,
       status
     );
+
+    // SCRUM-293: Notify the applicant that their application status changed
+    const job = await JobPosting.findById(application.job).select('title company');
+    const jobLabel = job ? `"${job.title}" at ${job.company}` : 'your job application';
+    await createNotification({
+      recipient: application.applicant,
+      type: 'APPLICATION_STATUS',
+      title: `Application Status Updated: ${application.status}`,
+      message: `Your application for ${jobLabel} is now "${application.status}".`,
+      relatedJob: application.job,
+      relatedApplication: application._id,
+    });
 
     res.status(200).json({
       message: 'Application status updated successfully.',

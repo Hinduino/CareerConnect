@@ -4,12 +4,18 @@ import { useAuth } from '../context/AuthContext';
 import { fetchJob } from '../api/jobApi';
 import { fetchResumes } from '../api/resumeApi';
 import { fetchApplicationStatus, submitApplication, cancelApplication } from '../api/applicationApi';
+import { fetchFavoriteJobIds, toggleFavoriteJob } from '../api/favoriteApi';
 
 function JobDetail({ jobId, onBack }) {
     const [job, setJob] = useState(null);
     const [error, setError] = useState('');
 
-    const { token, isAuthenticated } = useAuth();
+    const { token, isAuthenticated, user } = useAuth();
+    const isJobSeeker = isAuthenticated && user?.role === 'job_seeker';
+
+    // Favorite state (SCRUM-281)
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [favoriteLoading, setFavoriteLoading] = useState(false);
 
     // Whether the current user already has an application on file for this job.
     const [applied, setApplied] = useState(false);
@@ -39,6 +45,35 @@ function JobDetail({ jobId, onBack }) {
             loadJob();
         }
     }, [jobId]);
+
+    useEffect(() => {
+        const loadFavoriteState = async () => {
+            if (!isJobSeeker || !token || !jobId) {
+                setIsFavorited(false);
+                return;
+            }
+            try {
+                const ids = await fetchFavoriteJobIds(token);
+                setIsFavorited(ids.includes(jobId));
+            } catch {
+                setIsFavorited(false);
+            }
+        };
+        loadFavoriteState();
+    }, [isJobSeeker, token, jobId]);
+
+    const handleToggleFavorite = async () => {
+        if (!token || !jobId) return;
+        setFavoriteLoading(true);
+        try {
+            const res = await toggleFavoriteJob(token, jobId);
+            setIsFavorited(res.favorited);
+        } catch (err) {
+            setActionError(err.message || 'Failed to update favorite status.');
+        } finally {
+            setFavoriteLoading(false);
+        }
+    };
 
     useEffect(() => {
         const loadStatus = async () => {
@@ -150,7 +185,29 @@ function JobDetail({ jobId, onBack }) {
         <section className="job-detail-section" style={{ padding: '20px' }}>
             <button onClick={onBack} style={{ marginBottom: '20px' }}>&larr; Back to Job List</button>
 
-            <h2>{job.title}</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                <h2 style={{ margin: 0 }}>{job.title}</h2>
+                {isJobSeeker && (
+                    <button
+                        type="button"
+                        onClick={handleToggleFavorite}
+                        disabled={favoriteLoading}
+                        aria-pressed={isFavorited}
+                        style={{
+                            padding: '8px 14px',
+                            borderRadius: '6px',
+                            border: isFavorited ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                            backgroundColor: isFavorited ? '#fef3c7' : '#ffffff',
+                            color: isFavorited ? '#b45309' : '#334155',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        {isFavorited ? '★ Saved to Favorites' : '☆ Save Job'}
+                    </button>
+                )}
+            </div>
+
             <h4>{job.company} - {job.location}</h4>
             <span style={{ background: '#eee', padding: '5px' }}>{job.category}</span>
             <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>

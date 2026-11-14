@@ -16,7 +16,10 @@ const STATUS_STYLES = {
   Cancelled: { bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
 };
 
-function ApplicationHistory() {
+function ApplicationHistory({
+  selectedApplicationId = null,
+  onClearSelectedApplication,
+}) {
   const { user, token } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,13 @@ function ApplicationHistory() {
       try {
         const data = await fetchMyApplications(authToken);
         if (isSubscribed) {
-          setApplications(data || []);
+          const loadedApplications = data || [];
+          setApplications(loadedApplications);
+          setSelectedApp(
+            selectedApplicationId
+              ? loadedApplications.find((item) => item._id === selectedApplicationId) || null
+              : null
+          );
           setError('');
         }
       } catch (err) {
@@ -62,7 +71,7 @@ function ApplicationHistory() {
     return () => {
       isSubscribed = false;
     };
-  }, [authToken, user, reloadKey]);
+  }, [authToken, user, reloadKey, selectedApplicationId]);
 
   const handleDeclineOffer = async (e, applicationId) => {
     e.stopPropagation();
@@ -94,6 +103,11 @@ function ApplicationHistory() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedApp(null);
+    onClearSelectedApplication?.();
   };
 
   return (
@@ -235,7 +249,7 @@ function ApplicationHistory() {
 
       {selectedApp && (
         <div
-          onClick={() => setSelectedApp(null)}
+          onClick={handleCloseDetails}
           style={{
             position: 'fixed',
             inset: 0,
@@ -296,7 +310,7 @@ function ApplicationHistory() {
 
             <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button
-                onClick={() => setSelectedApp(null)}
+                onClick={handleCloseDetails}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '4px',

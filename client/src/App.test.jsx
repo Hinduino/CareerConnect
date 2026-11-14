@@ -3,12 +3,32 @@ const { fireEvent, render, screen } = require('@testing-library/react');
 jest.mock('./context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('./components/Navbar', () => ({
   __esModule: true,
-  default: function MockNavbar({ onProfileClick, onHomeClick, onDashboardClick }) {
+  default: function MockNavbar({
+    onProfileClick,
+    onHomeClick,
+    onDashboardClick,
+    onOpenNotification,
+  }) {
     return (
       <nav>
         <button onClick={onProfileClick}>Profile navigation</button>
         <button onClick={onHomeClick}>Home navigation</button>
         <button onClick={onDashboardClick}>Dashboard navigation</button>
+        <button
+          onClick={() =>
+            onOpenNotification({
+              relatedApplication: 'application-42',
+              relatedJob: 'job-42',
+            })
+          }
+        >
+          Open application notification
+        </button>
+        <button
+          onClick={() => onOpenNotification({ relatedApplication: null, relatedJob: 'job-43' })}
+        >
+          Open job notification
+        </button>
       </nav>
     );
   },
@@ -25,9 +45,16 @@ jest.mock('./components/ProfileView', () => function MockProfileView({ onBack })
   );
 });
 jest.mock('./components/JobList', () => function MockJobList() { return <div>Job list</div>; });
-jest.mock('./components/JobDetail', () => function MockJobDetail() { return <div>Job details</div>; });
-jest.mock('./components/RecruiterDashboard', () => function MockRecruiterDashboard() {
-  return <div>Recruiter dashboard</div>;
+jest.mock('./components/JobDetail', () => function MockJobDetail({ jobId }) {
+  return <div>Job details: {jobId}</div>;
+});
+jest.mock('./components/ApplicationHistory', () => function MockApplicationHistory({ selectedApplicationId }) {
+  return <div>Application history: {selectedApplicationId}</div>;
+});
+jest.mock('./components/RecruiterDashboard', () => function MockRecruiterDashboard({
+  selectedApplicationId,
+}) {
+  return <div>{selectedApplicationId ? `Recruiter dashboard: ${selectedApplicationId}` : 'Recruiter dashboard'}</div>;
 });
 
 const App = require('./App').default;
@@ -69,5 +96,46 @@ describe('App recruiter dashboard navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard navigation' }));
     expect(screen.getByText('Recruiter dashboard')).toBeInTheDocument();
     expect(screen.queryByText('Profile details')).not.toBeInTheDocument();
+  });
+});
+
+describe('App notification navigation', () => {
+  it('opens the notified application for a job seeker', () => {
+    useAuth.mockReturnValue({
+      user: { name: 'Jane Doe', role: 'job_seeker' },
+      isAuthenticated: true,
+      saveProfile: jest.fn(),
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open application notification' }));
+
+    expect(screen.getByText('Application history: application-42')).toBeInTheDocument();
+  });
+
+  it('opens the notified application dashboard for a recruiter', () => {
+    useAuth.mockReturnValue({
+      user: { name: 'Riley Recruiter', role: 'recruiter' },
+      isAuthenticated: true,
+      saveProfile: jest.fn(),
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open application notification' }));
+
+    expect(screen.getByText('Recruiter dashboard: application-42')).toBeInTheDocument();
+  });
+
+  it('opens the notified job posting when no application is associated', () => {
+    useAuth.mockReturnValue({
+      user: { name: 'Jane Doe', role: 'job_seeker' },
+      isAuthenticated: true,
+      saveProfile: jest.fn(),
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open job notification' }));
+
+    expect(screen.getByText('Job details: job-43')).toBeInTheDocument();
   });
 });

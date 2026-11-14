@@ -1,21 +1,33 @@
 import { useState } from 'react';
-import Navbar from './components/Navbar'
-import Hero from './components/Hero'
-import Footer from './components/Footer'
-import Profile from './components/Profile'
-import ProfileView from './components/ProfileView'
-import { useAuth } from './context/AuthContext'
-import JobList from './components/JobList'
-import JobDetail from './components/JobDetail'
-import RecruiterDashboard from './components/RecruiterDashboard'
-import RecruiterPostings from './components/RecruiterPostings'
-import ApplicationHistory from './components/ApplicationHistory'
-import Chatbot from './components/Chatbot'
+import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import Footer from './components/Footer';
+import Profile from './components/Profile';
+import ProfileView from './components/ProfileView';
+import { useAuth } from './context/AuthContext';
+import JobList from './components/JobList';
+import JobDetail from './components/JobDetail';
+import RecruiterDashboard from './components/RecruiterDashboard';
+import RecruiterPostings from './components/RecruiterPostings';
+import ApplicationHistory from './components/ApplicationHistory';
+import SavedJobs from './components/SavedJobs';
+import Chatbot from './components/Chatbot';
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
   const [currentView, setCurrentView] = useState('home');
   const [selectedJobId, setSelectedJobId] = useState(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState(null);
+
+  const handleOpenNotification = (notification) => {
+    if (notification.relatedApplication) {
+      setSelectedApplicationId(notification.relatedApplication);
+      setCurrentView(user?.role === 'recruiter' ? 'recruiter-applications' : 'my-applications');
+    } else if (notification.relatedJob) {
+      setSelectedJobId(notification.relatedJob);
+      setCurrentView('job-detail');
+    }
+  };
 
   const handleSaveProfile = async (profile) => {
     try {
@@ -46,10 +58,15 @@ function App() {
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
         onJobsClick={() => setCurrentView('jobs')}
+        onSavedJobsClick={() => setCurrentView('saved-jobs')}
         onDashboardClick={() => setCurrentView('recruiter-dashboard')}
         onPostingsClick={() => setCurrentView('recruiter-postings')}
         onRecruiterApplicationsClick={() => setCurrentView('recruiter-applications')}
-        onApplicationsClick={() => setCurrentView('my-applications')}
+        onApplicationsClick={() => {
+          setSelectedApplicationId(null);
+          setCurrentView('my-applications');
+        }}
+        onOpenNotification={handleOpenNotification}
       />
 
       {currentView === 'profile' && isAuthenticated ? (
@@ -71,10 +88,21 @@ function App() {
           user?.role === 'recruiter' ? (
         <RecruiterDashboard
           currentView={currentView}
+          selectedApplicationId={selectedApplicationId}
           onBack={() => setCurrentView('home')}
         />
+      ) : currentView === 'saved-jobs' && isAuthenticated && user?.role === 'job_seeker' ? (
+        <SavedJobs
+          onViewDetails={(id) => {
+            setSelectedJobId(id);
+            setCurrentView('job-detail');
+          }}
+        />
       ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
-        <ApplicationHistory />
+        <ApplicationHistory
+          selectedApplicationId={selectedApplicationId}
+          onClearSelectedApplication={() => setSelectedApplicationId(null)}
+        />
       ) : currentView === 'jobs' ? (
         <JobList
           onViewDetails={(id) => {
@@ -94,7 +122,7 @@ function App() {
       <Footer />
       <Chatbot />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -81,6 +81,25 @@ beforeEach(async () => {
     }
 });
 
+async function submitApplicationForNotificationTests() {
+    const recruiterId = await createUser({ role: 'recruiter' });
+    const applicantId = await createUser();
+    const jobId = await createJob(recruiterId);
+    const resumeId = await createResume(applicantId);
+    const response = await request(app)
+        .post('/api/applications')
+        .set('test_user_id', applicantId)
+        .send({ jobId, resumeId });
+
+    return {
+        recruiterId,
+        applicantId,
+        jobId,
+        applicationId: response.body.application && response.body.application._id,
+        submissionResponse: response,
+    };
+}
+
 describe('Application submission and management', () => {
     it('requires authentication to submit, check status, cancel, or download', async () => {
         const submit = await request(app).post('/api/applications').send({ jobId: 'x', resumeId: 'y' });
@@ -458,3 +477,130 @@ describe('Application submission and management', () => {
         expect(download.status).toBe(200);
         expect(Buffer.compare(download.body, Buffer.from('test'))).toBe(0);
     });
+
+describe('Application notification dashboards', () => {
+    it("notifies only the recruiter who owns the posting when an application is submitted", async () => {
+        const {
+            recruiterId,
+            applicantId,
+            jobId,
+            applicationId,
+            submissionResponse,
+        } = await submitApplicationForNotificationTests();
+        const otherRecruiterId = await createUser({ role: 'recruiter' });
+
+        expect(submissionResponse.status).toBe(201);
+
+        const recruiterDashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', recruiterId);
+        const otherRecruiterDashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', otherRecruiterId);
+        const notification = recruiterDashboard.body.notifications[0];
+
+        expect(recruiterDashboard.status).toBe(200);
+        expect(recruiterDashboard.body.notifications).toHaveLength(1);
+        expect(notification).toMatchObject({
+            recipient: recruiterId,
+            type: 'APPLICATION_SUBMITTED',
+            title: 'New Application Received',
+            relatedJob: jobId,
+            relatedApplication: applicationId,
+        });
+        expect(notification.recipient).not.toBe(applicantId);
+        expect(otherRecruiterDashboard.status).toBe(200);
+        expect(otherRecruiterDashboard.body.notifications).toHaveLength(0);
+    });
+
+    it('notifies the applicant dashboard when the recruiter updates the application status', async () => {
+        const {
+            recruiterId,
+            applicantId,
+            jobId,
+            applicationId,
+            submissionResponse,
+        } = await submitApplicationForNotificationTests();
+        expect(submissionResponse.status).toBe(201);
+
+        const updateResponse = await request(app)
+            .patch(`/api/applications/${applicationId}/status`)
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Under Review' });
+        const dashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', applicantId);
+
+        expect(updateResponse.status).toBe(200);
+        expect(dashboard.status).toBe(200);
+        expect(dashboard.body.notifications).toHaveLength(1);
+        expect(dashboard.body.notifications[0]).toMatchObject({
+            recipient: applicantId,
+            type: 'APPLICATION_STATUS',
+            title: 'Application Status Updated: Under Review',
+            relatedJob: jobId,
+            relatedApplication: applicationId,
+        });
+    });
+
+    it('notifies the applicant dashboard when the application moves to Interview', async () => {
+        const {
+            recruiterId,
+            applicantId,
+            jobId,
+            applicationId,
+            submissionResponse,
+        } = await submitApplicationForNotificationTests();
+        expect(submissionResponse.status).toBe(201);
+
+        const updateResponse = await request(app)
+            .patch(`/api/applications/${applicationId}/status`)
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Interview' });
+        const dashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', applicantId);
+
+        expect(updateResponse.status).toBe(200);
+        expect(dashboard.status).toBe(200);
+        expect(dashboard.body.notifications).toHaveLength(1);
+        expect(dashboard.body.notifications[0]).toMatchObject({
+            recipient: applicantId,
+            type: 'APPLICATION_STATUS',
+            title: 'Application Status Updated: Interview',
+            message: expect.stringContaining('"Interview".'),
+            relatedJob: jobId,
+            relatedApplication: applicationId,
+        });
+    });
+
+    it('notifies the applicant dashboard when the recruiter extends an offer', async () => {
+        const {
+            recruiterId,
+            applicantId,
+            jobId,
+            applicationId,
+            submissionResponse,
+        } = await submitApplicationForNotificationTests();
+        expect(submissionResponse.status).toBe(201);
+
+        const updateResponse = await request(app)
+            .patch(`/api/applications/${applicationId}/status`)
+            .set('test_user_id', recruiterId)
+            .send({ status: 'Offered' });
+        const dashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', applicantId);
+
+        expect(updateResponse.status).toBe(200);
+        expect(dashboard.status).toBe(200);
+        expect(dashboard.body.notifications).toHaveLength(1);
+        expect(dashboard.body.notifications[0]).toMatchObject({
+            recipient: applicantId,
+            type: 'APPLICATION_STATUS',
+            title: 'Application Status Updated: Offered',
+            relatedJob: jobId,
+            relatedApplication: applicationId,
+        });
+    });
+});

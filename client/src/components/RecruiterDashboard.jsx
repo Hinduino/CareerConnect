@@ -5,7 +5,7 @@ import { fetchApplicationResumeBlobUrl,  updateApplicationStatus, } from '../api
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
 import JobPostingForm from './JobPostingForm';
 
-function RecruiterDashboard({ currentView, onBack }) {
+function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null }) {
   const { token } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +86,13 @@ function RecruiterDashboard({ currentView, onBack }) {
     cancelled = true;
   };
 }, [currentView, token, refreshToken]);
+
+  useEffect(() => {
+    if (!selectedApplicationId || currentView !== 'recruiter-applications') return;
+    document
+      .getElementById(`recruiter-application-${selectedApplicationId}`)
+      ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [selectedApplicationId, currentView, allRecruiterApplications]);
 
   const handleCreate = async (values) => {
     await createJob(token, values);
@@ -320,7 +327,15 @@ function RecruiterDashboard({ currentView, onBack }) {
 
                   <tbody>
                     {filteredRecruiterApplications.map((application) => (
-                      <tr key={application._id}>
+                      <tr
+                        key={application._id}
+                        id={`recruiter-application-${application._id}`}
+                        aria-current={application._id === selectedApplicationId ? 'true' : undefined}
+                        style={{
+                          backgroundColor:
+                            application._id === selectedApplicationId ? '#eef2ff' : undefined,
+                        }}
+                      >
                         <td>{application.applicant?.name || 'Applicant'}</td>
                         <td>{application.jobTitle}</td>
                         <td>{application.applicant?.email || 'Unavailable'}</td>
