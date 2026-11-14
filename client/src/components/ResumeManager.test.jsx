@@ -7,6 +7,7 @@ jest.mock('../api/resumeApi', () => ({
   fetchResumes: jest.fn(),
   replaceResume: jest.fn(),
   uploadResume: jest.fn(),
+  fetchResumeFeedback: jest.fn(),
 }));
 
 const ResumeManager = require('./ResumeManager').default;
@@ -17,12 +18,17 @@ const {
   fetchResumes,
   replaceResume,
   uploadResume,
+  fetchResumeFeedback,
 } = require('../api/resumeApi');
 
 describe('ResumeManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuth.mockReturnValue({ token: 'token', isAuthenticated: true });
+    useAuth.mockReturnValue({
+      token: 'token',
+      isAuthenticated: true,
+      user: { role: 'job_seeker' },
+    });
     fetchResumes.mockResolvedValue([]);
     fetchResumeBlobUrl.mockResolvedValue('blob:resume');
     uploadResume.mockResolvedValue({
@@ -38,6 +44,11 @@ describe('ResumeManager', () => {
       size: 1024,
     });
     deleteResume.mockResolvedValue(undefined);
+    fetchResumeFeedback.mockResolvedValue({
+      summary: 'A clear resume with relevant experience.',
+      strengths: ['Strong project examples.'],
+      recommendations: ['Add measurable outcomes to recent roles.'],
+    });
     URL.createObjectURL = jest.fn();
     URL.revokeObjectURL = jest.fn();
     window.confirm = jest.fn(() => true);
@@ -54,6 +65,22 @@ describe('ResumeManager', () => {
   it('shows an empty state when there are no saved resumes', async () => {
     render(<ResumeManager />);
     expect(await screen.findByText("You haven't saved a resume yet.")).toBeInTheDocument();
+  });
+
+  it('only offers resume feedback to applicants', async () => {
+    useAuth.mockReturnValue({
+      token: 'token',
+      isAuthenticated: true,
+      user: { role: 'recruiter' },
+    });
+    fetchResumes.mockResolvedValue([
+      { id: 'resume-1', originalName: 'resume.pdf', contentType: 'application/pdf', size: 2048 },
+    ]);
+    render(<ResumeManager />);
+
+    await screen.findByText('resume.pdf');
+    expect(screen.queryByRole('button', { name: 'Resume Feedback' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'AI Resume Feedback' })).not.toBeInTheDocument();
   });
 
   it('shows only the most recently uploaded resume by default, with the rest behind a toggle', async () => {
@@ -99,6 +126,34 @@ describe('ResumeManager', () => {
       await screen.findByText('Preview isn\'t available for this file type. Use View or Download above.')
     ).toBeInTheDocument();
     expect(screen.queryByTitle('Preview of resume.docx')).not.toBeInTheDocument();
+  });
+
+  it('generates and displays structured feedback for a saved resume', async () => {
+    fetchResumes.mockResolvedValue([
+      { id: 'resume-1', originalName: 'resume.pdf', contentType: 'application/pdf', size: 2048 },
+    ]);
+    render(<ResumeManager />);
+    await screen.findByText('resume.pdf');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume Feedback' }));
+
+    expect(await screen.findByText('A clear resume with relevant experience.')).toBeInTheDocument();
+    expect(screen.getByText('Strong project examples.')).toBeInTheDocument();
+    expect(screen.getByText('Add measurable outcomes to recent roles.')).toBeInTheDocument();
+    expect(fetchResumeFeedback).toHaveBeenCalledWith('token', 'resume-1');
+  });
+
+  it('surfaces resume feedback service errors in the profile section', async () => {
+    fetchResumes.mockResolvedValue([
+      { id: 'resume-1', originalName: 'resume.pdf', contentType: 'application/pdf', size: 2048 },
+    ]);
+    fetchResumeFeedback.mockRejectedValue(new Error('Resume feedback is temporarily unavailable.'));
+    render(<ResumeManager />);
+    await screen.findByText('resume.pdf');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume Feedback' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Resume feedback is temporarily unavailable.');
   });
 
   it('validates a selected file before upload and adds a new resume to the list', async () => {

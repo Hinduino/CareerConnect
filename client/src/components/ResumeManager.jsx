@@ -5,6 +5,7 @@ import {
   uploadResume,
   replaceResume,
   deleteResume,
+  fetchResumeFeedback,
 } from '../api/resumeApi';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,18 +19,25 @@ function formatFileSize(bytes) {
 }
 
 function ResumeManager() {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showOthers, setShowOthers] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [feedbackError, setFeedbackError] = useState('');
+  const [feedbackLoading, setFeedbackLoading] = useState(null);
   const fileInputRef = useRef(null);
   // null while uploading a new resume, otherwise the id of the resume being replaced.
   const replacingIdRef = useRef(null);
 
   const [mostRecent, ...otherResumes] = resumes;
   const mostRecentId = mostRecent?.id;
+  const canGetResumeFeedback = isAuthenticated && user?.role === 'job_seeker';
+  const visibleFeedback = feedback?.token === token ? feedback : null;
+  const visibleFeedbackError = feedbackError?.token === token ? feedbackError.message : '';
+  const feedbackLoadingId = feedbackLoading?.token === token ? feedbackLoading.resumeId : '';
 
   useEffect(() => {
     const loadResumes = async () => {
@@ -117,6 +125,9 @@ function ResumeManager() {
       if (replacingId) {
         const updated = await replaceResume(token, replacingId, file);
         setResumes((current) => current.map((r) => (r.id === replacingId ? updated : r)));
+        setFeedback((current) => (
+          current?.token === token && current.resumeId === replacingId ? null : current
+        ));
       } else {
         const created = await uploadResume(token, file);
         setResumes((current) => [created, ...current]);
@@ -136,8 +147,26 @@ function ResumeManager() {
     try {
       await deleteResume(token, resume.id);
       setResumes((current) => current.filter((item) => item.id !== resume.id));
+      setFeedback((current) => (
+        current?.token === token && current.resumeId === resume.id ? null : current
+      ));
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleResumeFeedback = async (resume) => {
+    if (!token || feedbackLoadingId) return;
+    setFeedback(null);
+    setFeedbackError('');
+    setFeedbackLoading({ token, resumeId: resume.id });
+    try {
+      const result = await fetchResumeFeedback(token, resume.id);
+      setFeedback({ token, resumeId: resume.id, resumeName: resume.originalName, ...result });
+    } catch (err) {
+      setFeedbackError({ token, message: err.message || 'Could not generate resume feedback.' });
+    } finally {
+      setFeedbackLoading((current) => (current?.token === token ? null : current));
     }
   };
 
@@ -180,10 +209,30 @@ function ResumeManager() {
         <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(resume, true)}>
           Download
         </button>
-        <button type="button" className="btn-secondary btn-small" onClick={() => openFilePicker(resume.id)}>
+        {canGetResumeFeedback && (
+          <button
+            type="button"
+            className="btn-secondary btn-small"
+            disabled={loading || Boolean(feedbackLoadingId)}
+            onClick={() => handleResumeFeedback(resume)}
+          >
+            {feedbackLoadingId === resume.id ? 'Analyzing...' : 'Resume Feedback'}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn-secondary btn-small"
+          disabled={loading || Boolean(feedbackLoadingId)}
+          onClick={() => openFilePicker(resume.id)}
+        >
           Replace
         </button>
-        <button type="button" className="btn-danger btn-small" onClick={() => handleDelete(resume)}>
+        <button
+          type="button"
+          className="btn-danger btn-small"
+          disabled={loading || Boolean(feedbackLoadingId)}
+          onClick={() => handleDelete(resume)}
+        >
           Delete
         </button>
       </div>
@@ -246,9 +295,47 @@ function ResumeManager() {
       )}
 
       {isAuthenticated && (
-        <button type="button" className="btn-primary" onClick={() => openFilePicker()}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={loading || Boolean(feedbackLoadingId)}
+          onClick={() => openFilePicker()}
+        >
           Upload Resume
         </button>
+      )}
+
+      {canGetResumeFeedback && (
+        <section className="resume-feedback" aria-labelledby="resume-feedback-title" aria-live="polite">
+          <h3 id="resume-feedback-title">AI Resume Feedback</h3>
+          {feedbackLoadingId && <p role="status">Analyzing your resume...</p>}
+          {visibleFeedbackError && <p className="resume-error" role="alert">{visibleFeedbackError}</p>}
+          {!visibleFeedback && !feedbackLoadingId && !visibleFeedbackError && (
+            <p className="resume-hint">
+              Choose Resume Feedback beside a saved resume to get a summary, strengths, and improvement suggestions.
+            </p>
+          )}
+          {visibleFeedback && (
+            <div>
+              <p className="resume-meta">Feedback for {visibleFeedback.resumeName}</p>
+              <p>{visibleFeedback.summary}</p>
+              <div className="resume-feedback-columns">
+                <div>
+                  <h4>Strengths</h4>
+                  {visibleFeedback.strengths.length > 0 ? (
+                    <ul>{visibleFeedback.strengths.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+                  ) : <p>No strengths were identified.</p>}
+                </div>
+                <div>
+                  <h4>Recommendations</h4>
+                  {visibleFeedback.recommendations.length > 0 ? (
+                    <ul>{visibleFeedback.recommendations.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+                  ) : <p>No improvement suggestions were returned.</p>}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       <input
