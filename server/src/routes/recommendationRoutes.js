@@ -14,6 +14,22 @@ const MAX_RECOMMENDATIONS = 5;
 const REQUEST_TIMEOUT_MS = 90000;
 const KILO_MODEL = 'kilo-auto/free';
 
+function getRecommendationServiceError(status) {
+    if (status === 401 || status === 403) {
+        return 'The recommendation service rejected the request. Please try again later.';
+    }
+    if (status === 404) {
+        return 'The recommendation service is temporarily unavailable. Please try again later.';
+    }
+    if (status === 429) {
+        return 'The recommendation service is busy. Please try again later.';
+    }
+    if (status >= 500) {
+        return 'The recommendation service is temporarily unavailable. Please try again later.';
+    }
+    return 'The recommendation service could not process this request. Please try again later.';
+}
+
 function toJobDetails(job) {
     return {
         id: job._id.toString(),
@@ -65,15 +81,29 @@ function parseRecommendations(content, candidateJobs) {
         return {
             job: toJobDetails(job),
             reason: recommendation.reason.trim().slice(0, 1000),
-            matchedQualifications: recommendation.matchedQualifications.slice(0, 8),
-            gaps: recommendation.gaps.slice(0, 8)
+            matchedQualifications: recommendation.matchedQualifications
+                .slice(0, 8)
+                .map((item) => item.slice(0, 300)),
+            gaps: recommendation.gaps.slice(0, 8).map((item) => item.slice(0, 300))
         };
     });
 }
 
 router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
-    const { resumeId } = req.body || {};
-    if (resumeId && !mongoose.isValidObjectId(resumeId)) {
+    const requestBody = req.body ?? {};
+    if (
+        typeof requestBody !== 'object'
+        || Array.isArray(requestBody)
+        || Object.keys(requestBody).some((key) => key !== 'resumeId')
+    ) {
+        return res.status(400).json({ error: 'Invalid recommendation request.' });
+    }
+    const { resumeId } = requestBody;
+    if (
+        resumeId !== undefined
+        && resumeId !== null
+        && (typeof resumeId !== 'string' || !mongoose.isValidObjectId(resumeId))
+    ) {
         return res.status(400).json({ error: 'Invalid resume ID.' });
     }
 
@@ -97,8 +127,8 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
                 .limit(MAX_CANDIDATE_JOBS)
                 .lean()
         ]);
-    } catch (error) {
-        console.error('Failed to load job recommendation context:', error);
+    } catch {
+        console.error('Failed to load job recommendation context.');
         return res.status(500).json({ error: 'Could not load recommendation data. Please try again.' });
     }
 
@@ -130,7 +160,7 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
             if (error.message === 'No readable text was found in the document') {
                 return res.status(400).json({ error: 'No readable text was found in the selected resume.' });
             }
-            console.error('Failed to extract resume for job recommendations:', error);
+            console.error('Failed to extract resume for job recommendations.');
             return res.status(400).json({
                 error: 'Could not analyze the selected resume. Check that it is a valid PDF, DOC, or DOCX file.'
             });
@@ -152,7 +182,7 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
     ].join('\n\n');
     const applicantAndJobData = JSON.stringify({
         profile: {
-            location: profile?.location || '',
+            location: profile?.location?.slice(0, 200) || '',
             bio: profile?.bio?.slice(0, 1500) || ''
         },
         resumeText: resumeContext?.text || '',
@@ -185,17 +215,22 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
         });
 
         if (!response.ok) {
-            const errorBody = await response.text();
-            console.error(`Job recommendation request failed (${response.status}): ${errorBody.slice(0, 1000)}`);
-            return res.status(502).json({
-                error: 'The recommendation service is temporarily unavailable. Please try again.'
-            });
+            console.error(`Job recommendation request failed with status ${response.status}.`);
+            return res.status(502).json({ error: getRecommendationServiceError(response.status) });
         }
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch {
+            console.error('Job recommendation service returned an invalid response body.');
+            return res.status(502).json({
+                error: 'The recommendation service returned an invalid response. Please try again.'
+            });
+        }
         let recommendations;
         try {
-            recommendations = parseRecommendations(data.choices?.[0]?.message?.content, candidateJobs);
+            recommendations = parseRecommendations(data?.choices?.[0]?.message?.content, candidateJobs);
         } catch (error) {
             console.error('Job recommendation response could not be validated:', error.message);
             return res.status(502).json({ error: error.message });
@@ -203,11 +238,10 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
         return res.json({
             recommendations,
-            resumeName: resume?.originalName || null,
             generatedAt: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Job recommendation request failed:', error.message);
+        console.error(`Job recommendation request failed (${error.name || 'Error'}).`);
         const message = error.name === 'TimeoutError' || error.name === 'AbortError'
             ? 'Job recommendations took too long to generate. Please try again.'
             : 'Could not connect to the recommendation service. Please try again.';

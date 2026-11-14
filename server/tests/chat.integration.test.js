@@ -123,7 +123,7 @@ describe('AI chat route', () => {
         expect(Application.find).toHaveBeenCalledWith({ applicant: userId });
         expect(response.body.reply).toContain('interview');
         const systemContext = getKiloRequest(fetchMock).messages[0].content;
-        expect(systemContext).toContain('Jordan Candidate');
+        expect(systemContext).not.toContain('Jordan Candidate');
         expect(systemContext).toContain('Interview');
         expect(systemContext).not.toContain('private@example.com');
     });
@@ -138,6 +138,24 @@ describe('AI chat route', () => {
         expect(response.status).toBe(401);
         expect(User.findById).not.toHaveBeenCalled();
         expect(Application.find).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-string profile resume IDs before querying private data', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        const fetchMock = jest.spyOn(global, 'fetch');
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+                messages: [{ role: 'user', content: 'Review my profile resume.' }],
+                profileResumeId: { $ne: null }
+            });
+
+        expect(response.status).toBe(400);
+        expect(Resume.findOne).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -173,7 +191,7 @@ describe('AI chat route', () => {
             originalname: 'resume.docx'
         }));
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('Candidate has five years');
-        expect(getKiloRequest(fetchMock).messages[0].content).toContain('resume.docx');
+        expect(getKiloRequest(fetchMock).messages[0].content).not.toContain('resume.docx');
         expect(getKiloRequest(fetchMock).messages).toHaveLength(2);
         expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1000);
     });
@@ -221,7 +239,7 @@ describe('AI chat route', () => {
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('Education: BSc Computer Science');
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('Looking for software engineering work.');
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('"category":"Engineering"');
-        expect(getKiloRequest(fetchMock).messages[0].content).toContain('profile-resume.pdf');
+        expect(getKiloRequest(fetchMock).messages[0].content).not.toContain('profile-resume.pdf');
     });
 
     it('does not expose a profile resume to unauthenticated callers', async () => {
@@ -232,6 +250,24 @@ describe('AI chat route', () => {
 
         expect(response.status).toBe(401);
         expect(Resume.findOne).not.toHaveBeenCalled();
+    });
+
+    it('does not load a profile resume owned by another user', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const resumeId = '507f1f77bcf86cd799439012';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        Resume.findOne.mockReturnValue(createQuery(null));
+        const fetchMock = jest.spyOn(global, 'fetch');
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Review my resume.' }]))
+            .field('profileResumeId', resumeId);
+
+        expect(response.status).toBe(404);
+        expect(Resume.findOne).toHaveBeenCalledWith({ _id: resumeId, user: userId });
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('returns a clear error when the selected profile resume cannot be analyzed', async () => {
@@ -254,6 +290,28 @@ describe('AI chat route', () => {
         expect(response.status).toBe(400);
         expect(response.body.error).toMatch(/No readable text/);
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not log parser errors that could contain resume text', async () => {
+        const userId = '507f1f77bcf86cd799439011';
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET);
+        Resume.findOne.mockReturnValue(createQuery({
+            originalName: 'scan.pdf',
+            contentType: 'application/pdf',
+            data: Buffer.from('%PDF-1.7')
+        }));
+        extractDocumentText.mockRejectedValue(new Error('Parser error: PRIVATE_RESUME_CONTENT_SENTINEL'));
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        const response = await request(app)
+            .post('/api/chat')
+            .set('Authorization', `Bearer ${token}`)
+            .field('messages', JSON.stringify([{ role: 'user', content: 'Review my resume.' }]))
+            .field('profileResumeId', '507f1f77bcf86cd799439012');
+
+        expect(response.status).toBe(400);
+        expect(errorLog.mock.calls.flat().join(' ')).not.toContain('PRIVATE_RESUME_CONTENT_SENTINEL');
+        errorLog.mockRestore();
     });
 
     it('limits conversation history when a document is attached', async () => {
@@ -326,5 +384,40 @@ describe('AI chat route', () => {
 
         expect(response.status).toBe(502);
         expect(response.body.error).toMatch(/anonymous rate limit reached/);
+    });
+
+    it('does not log upstream error bodies and reports unavailable AI services clearly', async () => {
+        const privateSentinel = 'PRIVATE_RESUME_CONTENT_SENTINEL';
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: false,
+            status: 503,
+            text: async () => privateSentinel
+        });
+
+        const response = await request(app)
+            .post('/api/chat')
+            .send({ messages: [{ role: 'user', content: 'Hello' }] });
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toMatch(/temporarily unavailable/i);
+        expect(errorLog.mock.calls.flat().join(' ')).not.toContain(privateSentinel);
+        errorLog.mockRestore();
+    });
+
+    it('returns a clear error for a malformed Kilo response body', async () => {
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => { throw new SyntaxError('invalid JSON'); }
+        });
+
+        const response = await request(app)
+            .post('/api/chat')
+            .send({ messages: [{ role: 'user', content: 'Hello' }] });
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toMatch(/invalid response/i);
+        errorLog.mockRestore();
     });
 });

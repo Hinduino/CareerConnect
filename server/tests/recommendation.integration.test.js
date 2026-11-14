@@ -160,6 +160,18 @@ describe('Personalized job recommendations', () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
+    it('rejects invalid recommendation request fields before loading data or contacting AI', async () => {
+        const applicantId = await createUser();
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({ resumeId: { $ne: null }, extra: 'unexpected' });
+
+        expect(response.status).toBe(400);
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it('returns a clear error when the selected resume has no readable text', async () => {
         const applicantId = await createUser();
         const recruiterId = await createUser({ role: 'recruiter' });
@@ -175,6 +187,25 @@ describe('Personalized job recommendations', () => {
         expect(response.status).toBe(400);
         expect(response.body.error).toMatch(/no readable text/i);
         expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not log parser errors that could contain resume text', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId);
+        const resume = await createResume(applicantId);
+        extractDocumentText.mockRejectedValue(new Error('Parser error: PRIVATE_RESUME_CONTENT_SENTINEL'));
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({ resumeId: resume._id.toString() });
+
+        expect(response.status).toBe(400);
+        expect(errorLog.mock.calls.flat().join(' ')).not.toContain('PRIVATE_RESUME_CONTENT_SENTINEL');
+        expect(global.fetch).not.toHaveBeenCalled();
+        errorLog.mockRestore();
     });
 
     it('uses the applicant profile as it exists on each refresh', async () => {
@@ -234,6 +265,49 @@ describe('Personalized job recommendations', () => {
 
         expect(response.status).toBe(502);
         expect(response.body.error).toMatch(/invalid job match/i);
+        errorLog.mockRestore();
+    });
+
+    it('does not log upstream error bodies and reports unavailable AI services clearly', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId);
+        const privateSentinel = 'PRIVATE_RESUME_CONTENT_SENTINEL';
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+        global.fetch.mockResolvedValue({
+            ok: false,
+            status: 503,
+            text: async () => privateSentinel,
+        });
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({});
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toMatch(/temporarily unavailable/i);
+        expect(errorLog.mock.calls.flat().join(' ')).not.toContain(privateSentinel);
+        errorLog.mockRestore();
+    });
+
+    it('returns a clear error for malformed AI response bodies', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        await createJob(recruiterId);
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => { throw new SyntaxError('invalid JSON'); },
+        });
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({});
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toMatch(/invalid response/i);
         errorLog.mockRestore();
     });
 });
