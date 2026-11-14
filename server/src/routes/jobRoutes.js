@@ -196,7 +196,6 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
         if (dueDateError) {
             return res.status(400).json({ error: dueDateError });
         }
-
         const { title, company, location, category, description, requirements, dueDate } = req.body;
         const job = await JobPosting.create({
             title: title.trim(),
@@ -236,7 +235,6 @@ router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (
         if (dueDateError) {
             return res.status(400).json({ error: dueDateError });
         }
-
         const { title, company, location, category, description, requirements, dueDate } = req.body;
         job.title = title.trim();
         job.company = company.trim();

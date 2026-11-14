@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const WELCOME_MESSAGE = {
   role: 'assistant',
-  content: "Hi! I'm the CareerConnect AI assistant. Ask me about job searching, applications, resumes, or interviews."
+  content: "Hi! I'm the CareerConnect AI assistant. Ask me about job searching, applications, resumes, or interviews. You can also ask me to compare your profile and resume with active jobs for tailored recommendations."
 };
 
 const DOCUMENT_TYPES = {

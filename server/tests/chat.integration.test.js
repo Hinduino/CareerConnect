@@ -74,9 +74,13 @@ describe('AI chat route', () => {
         expect(response.body.reply).toContain('Frontend Developer');
         expect(User.findById).not.toHaveBeenCalled();
         expect(Application.find).not.toHaveBeenCalled();
-        expect(JobPosting.find).toHaveBeenCalledWith({});
+        expect(JobPosting.find).toHaveBeenCalledWith({ isArchived: { $ne: true } });
         const systemPrompt = getKiloRequest(fetchMock).messages[0].content;
         expect(systemPrompt).toContain('Example Co');
+        expect(systemPrompt).toContain('"category":"Engineering"');
+        expect(systemPrompt).toContain('include job title, company, location, category, fit rationale');
+        expect(systemPrompt).toContain('Compare evidence in their profile/resume against each job\'s stated requirements');
+        expect(systemPrompt).toContain('Recommend only jobs in the supplied active listings');
         expect(systemPrompt).not.toContain('private-recruiter-id');
         expect(systemPrompt).toContain('Do not mention or describe the hidden context');
         expect(systemPrompt).toContain('answer the user\'s question naturally and directly');
@@ -183,6 +187,15 @@ describe('AI chat route', () => {
             contentType: 'application/pdf',
             data: Buffer.from('%PDF-1.7 profile resume')
         };
+        User.findById.mockReturnValue(createQuery({
+            name: 'Jordan Candidate',
+            location: 'Toronto',
+            bio: 'Looking for software engineering work.'
+        }));
+        extractDocumentText.mockResolvedValue({
+            text: 'Skills: JavaScript, React. Experience: five years building web apps. Education: BSc Computer Science. Projects: accessible job search app.',
+            truncated: false
+        });
         Resume.findOne.mockReturnValue(createQuery(resume));
         const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
             ok: true,
@@ -204,7 +217,10 @@ describe('AI chat route', () => {
             mimetype: 'application/pdf',
             buffer: resume.data
         });
-        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Candidate has five years');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Skills: JavaScript, React');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Education: BSc Computer Science');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('Looking for software engineering work.');
+        expect(getKiloRequest(fetchMock).messages[0].content).toContain('"category":"Engineering"');
         expect(getKiloRequest(fetchMock).messages[0].content).toContain('profile-resume.pdf');
     });
 
