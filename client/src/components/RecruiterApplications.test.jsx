@@ -45,8 +45,14 @@ const applicationsByJob = {
   'job-da': [application('app-3', 'Sara Test', 'seeker1@test.com', 'Rejected')],
 };
 
-function renderApplicationsPage() {
-  return render(<RecruiterDashboard currentView="recruiter-applications" onBack={() => {}} />);
+function renderApplicationsPage(selectedApplicationId = null) {
+  return render(
+    <RecruiterDashboard
+      currentView="recruiter-applications"
+      selectedApplicationId={selectedApplicationId}
+      onBack={() => {}}
+    />
+  );
 }
 
 // Each table row as "Applicant | Job Title"
@@ -87,6 +93,20 @@ describe('Recruiter Applications page', () => {
       'Omar Lee | Frontend Developer',
       'Sara Test | Data Analyst',
     ]);
+  });
+
+  it('scrolls to and highlights the application opened from a notification', async () => {
+    renderApplicationsPage('app-3');
+
+    await waitFor(() => {
+      expect(document.getElementById('recruiter-application-app-3')).toHaveAttribute(
+        'aria-current',
+        'true'
+      );
+    });
+
+    const applicationRow = document.getElementById('recruiter-application-app-3');
+    expect(applicationRow).toHaveStyle({ backgroundColor: 'rgb(238, 242, 255)' });
   });
 
   it('shows an empty message when there are no applications yet', async () => {

@@ -11,6 +11,7 @@ jest.mock("../models/Notification");
 describe("notificationQueries", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Notification.findOne.mockResolvedValue(null);
   });
 
   describe("createNotification", () => {
@@ -30,6 +31,7 @@ describe("notificationQueries", () => {
         title: "Hi",
         message: "Msg",
       });
+      const dedupeKey = Notification.findOne.mock.calls[0][0].dedupeKey;
 
       expect(Notification.create).toHaveBeenCalledWith({
         recipient: "u1",
@@ -38,8 +40,43 @@ describe("notificationQueries", () => {
         message: "Msg",
         relatedJob: null,
         relatedApplication: null,
+        dedupeKey,
       });
       expect(res).toEqual(mockNotif);
+    });
+
+    it("returns an existing notification instead of creating a duplicate", async () => {
+      const existing = { _id: "n1", recipient: "u1", title: "Hi", message: "Msg" };
+      Notification.findOne.mockResolvedValue(existing);
+
+      const result = await createNotification({
+        recipient: "u1",
+        title: "Hi",
+        message: "Msg",
+      });
+
+      expect(result).toBe(existing);
+      expect(Notification.findOne).toHaveBeenCalledWith({
+        dedupeKey: expect.any(String),
+      });
+      expect(Notification.create).not.toHaveBeenCalled();
+    });
+
+    it("returns the existing notification if a concurrent create wins the unique-key race", async () => {
+      const existing = { _id: "n1", recipient: "u1", title: "Hi", message: "Msg" };
+      Notification.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existing);
+      Notification.create.mockRejectedValue(Object.assign(new Error("Duplicate key"), { code: 11000 }));
+
+      const result = await createNotification({
+        recipient: "u1",
+        title: "Hi",
+        message: "Msg",
+      });
+
+      expect(result).toBe(existing);
+      expect(Notification.findOne).toHaveBeenCalledTimes(2);
     });
   });
 

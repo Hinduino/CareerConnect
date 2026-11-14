@@ -33,6 +33,9 @@ const notificationSchema = new mongoose.Schema(
       ref: "Application",
       default: null,
     },
+    dedupeKey: {
+      type: String,
+    },
     isRead: {
       type: Boolean,
       default: false,
@@ -40,6 +43,8 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+notificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
 
 module.exports =
   mongoose.models.Notification ||

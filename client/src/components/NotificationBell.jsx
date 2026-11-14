@@ -6,7 +6,7 @@ import {
   markAllNotificationsRead,
 } from '../api/notificationApi';
 
-function NotificationBell() {
+function NotificationBell({ onOpenNotification }) {
   const { token, isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -80,6 +80,11 @@ function NotificationBell() {
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
     }
+  };
+
+  const handleNotificationClick = async (notification) => {
+    await handleMarkAsRead(notification);
+    onOpenNotification?.(notification);
   };
 
   const handleMarkAllAsRead = async () => {
@@ -198,14 +203,23 @@ function NotificationBell() {
           ) : (
             <div>
               {notifications.map((notif) => (
-                <div
+                <button
+                  type="button"
                   key={notif._id}
-                  onClick={() => handleMarkAsRead(notif)}
+                  onClick={() => handleNotificationClick(notif)}
+                  aria-label={`Open notification: ${notif.title}`}
                   style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    font: 'inherit',
                     padding: '12px 14px',
                     borderBottom: '1px solid #f1f5f9',
                     backgroundColor: notif.isRead ? '#ffffff' : '#eff6ff',
-                    cursor: notif.isRead ? 'default' : 'pointer',
+                    borderTop: 'none',
+                    borderLeft: 'none',
+                    borderRight: 'none',
+                    cursor: 'pointer',
                   }}
                 >
                   <div
@@ -237,7 +251,7 @@ function NotificationBell() {
                   <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                     {new Date(notif.createdAt).toLocaleString()}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           )}

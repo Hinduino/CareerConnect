@@ -37,6 +37,18 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
   try {
     const { id } = req.params;
     const updated = await declineJobOffer(id, req.user.id);
+    const job = await JobPosting.findById(updated.job);
+    if (job && job.postedBy) {
+      await createNotification({
+        recipient: job.postedBy,
+        type: 'APPLICATION_STATUS',
+        title: 'Job Offer Declined',
+        message: `A candidate declined the offer for "${job.title}" at ${job.company}.`,
+        relatedJob: job._id,
+        relatedApplication: updated._id,
+      });
+    }
+
     res.status(200).json({ message: 'Offer declined successfully.', application: updated });
   } catch (err) {
     console.error('Error declining offer:', err.message);
