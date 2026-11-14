@@ -130,7 +130,10 @@ body {
   border: 1px solid #ccc;
   border-radius: 6px;
   padding: 1rem;
-  max-width: 600px;
+  width: 100%;
+  max-width: 1000px;
+  box-sizing: border-box;
+  margin-inline: auto;
 }
 
 .resume-meta {
@@ -142,6 +145,13 @@ body {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.resume-feedback-action {
+  flex-basis: 100%;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
 }
 
 /* Resume preview: an embedded view of the uploaded file, shown right below
@@ -172,11 +182,13 @@ body {
 
 .resume-feedback {
   width: 100%;
-  max-width: 900px;
+  max-width: 1000px;
   padding: 1.25rem;
   border: 1px solid #d5dbe5;
   border-radius: 8px;
   background: #f8fafc;
+  box-sizing: border-box;
+  margin-inline: auto;
 }
 
 .resume-feedback-columns {
@@ -269,6 +281,10 @@ body {
   border-radius: 10px;
   padding: 2rem;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.profile-container-applicant {
+  max-width: 1100px;
 }
 
 .profile-header {

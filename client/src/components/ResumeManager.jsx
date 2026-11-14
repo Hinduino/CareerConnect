@@ -209,16 +209,6 @@ function ResumeManager() {
         <button type="button" className="btn-secondary btn-small" onClick={() => handleViewOrDownload(resume, true)}>
           Download
         </button>
-        {canGetResumeFeedback && (
-          <button
-            type="button"
-            className="btn-secondary btn-small"
-            disabled={loading || Boolean(feedbackLoadingId)}
-            onClick={() => handleResumeFeedback(resume)}
-          >
-            {feedbackLoadingId === resume.id ? 'Analyzing...' : 'Resume Feedback'}
-          </button>
-        )}
         <button
           type="button"
           className="btn-secondary btn-small"
@@ -236,6 +226,18 @@ function ResumeManager() {
           Delete
         </button>
       </div>
+      {canGetResumeFeedback && (
+        <div className="resume-feedback-action">
+          <button
+            type="button"
+            className="btn-secondary btn-small"
+            disabled={loading || Boolean(feedbackLoadingId)}
+            onClick={() => handleResumeFeedback(resume)}
+          >
+            {feedbackLoadingId === resume.id ? 'Analyzing...' : 'Resume Feedback'}
+          </button>
+        </div>
+      )}
     </div>
   );
 

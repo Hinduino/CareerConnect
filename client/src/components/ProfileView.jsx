@@ -15,7 +15,7 @@ function ProfileView({ user, onEdit, onBack }) {
 
   return (
     <main className="profile-page">
-      <div className="profile-container">
+      <div className={`profile-container ${user?.role === 'job_seeker' ? 'profile-container-applicant' : ''}`}>
         <div className="profile-header">
           <h1>My Profile</h1>
           <button type="button" className="btn-secondary" onClick={onBack}>

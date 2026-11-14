@@ -135,7 +135,10 @@ describe('ResumeManager', () => {
     render(<ResumeManager />);
     await screen.findByText('resume.pdf');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume Feedback' }));
+    const feedbackButton = screen.getByRole('button', { name: 'Resume Feedback' });
+    expect(feedbackButton.closest('.resume-card')).toBeInTheDocument();
+    expect(feedbackButton.parentElement).toHaveClass('resume-feedback-action');
+    fireEvent.click(feedbackButton);
 
     expect(await screen.findByText('A clear resume with relevant experience.')).toBeInTheDocument();
     expect(screen.getByText('Strong project examples.')).toBeInTheDocument();
