@@ -168,6 +168,22 @@ describe('Application submission and management', () => {
         expect(duplicate.status).toBe(409);
     });
 
+    it('rejects applications for postings whose deadline has expired', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const jobId = await createJob(recruiterId, { dueDate: new Date(Date.now() - 86400000) });
+        const resumeId = await createResume(applicantId);
+
+        const response = await request(app)
+            .post('/api/applications')
+            .set('test_user_id', applicantId)
+            .send({ jobId, resumeId });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toMatch(/expired/i);
+        expect(await Application.countDocuments({ applicant: applicantId, job: jobId })).toBe(0);
+    });
+
     it('reports application status before and after applying', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
         const applicantId = await createUser();

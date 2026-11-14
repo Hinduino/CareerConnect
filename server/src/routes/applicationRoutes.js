@@ -99,6 +99,9 @@ router.post('/', requireAuth, async (req, res) => {
     if (job.isArchived) {
       return res.status(400).json({ error: 'This job posting is archived and no longer accepts applications.' });
     }
+    if (job.dueDate && job.dueDate <= new Date()) {
+      return res.status(400).json({ error: 'This job posting has expired and no longer accepts applications.' });
+    }
 
     const application = await createApplication(req.user.id, jobId, resumeId);
 

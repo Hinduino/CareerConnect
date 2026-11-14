@@ -103,3 +103,32 @@ describe('Navbar authenticated recruiter', () => {
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
   });
 });
+
+describe('Navbar applicant recommendations', () => {
+  it('shows the recommendations navigation item and opens it when selected', () => {
+    const onRecommendationsClick = jest.fn();
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { email: 'seeker@example.com', role: 'job_seeker' },
+      login: jest.fn(),
+      register: jest.fn(),
+      logout: jest.fn(),
+    });
+
+    render(
+      <Navbar
+        onLoginSuccess={jest.fn()}
+        onSignUpSuccess={jest.fn()}
+        onLogout={jest.fn()}
+        onProfileClick={jest.fn()}
+        onHomeClick={jest.fn()}
+        onJobsClick={jest.fn()}
+        onRecommendationsClick={onRecommendationsClick}
+        onDashboardClick={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Recommendations'));
+    expect(onRecommendationsClick).toHaveBeenCalledTimes(1);
+  });
+});
