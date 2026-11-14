@@ -155,11 +155,12 @@ describe('CareerConnect Integration Tests', () => {
         it.each([7, 3, 1])(
             'creates and returns a due-date reminder %i day(s) before deadline',
             async (daysUntilDue) => {
-                const now = new Date('2026-11-13T12:00:00.000Z');
+                const now = new Date();
                 const dueDate = new Date(Date.UTC(
                     now.getUTCFullYear(),
                     now.getUTCMonth(),
-                    now.getUTCDate() + daysUntilDue
+                    now.getUTCDate() + daysUntilDue,
+                    12
                 ));
                 const { applicant, job, submission } = await createApplicationScenario(dueDate);
                 expect(submission.status).toBe(201);
