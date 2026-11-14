@@ -44,6 +44,32 @@ describe('CareerConnect chatbot', () => {
     ], 'session-token', null, '');
   });
 
+  it('renders formatted assistant responses with clear headings and callouts', async () => {
+    sendChatMessage.mockResolvedValue([
+      '## Resume Summary',
+      'Your resume shows **strong experience** with *React* and `TypeScript`.',
+      '',
+      '> Add measurable outcomes to your recent projects.',
+      '',
+      '- Keep the skills section focused.',
+    ].join('\n'));
+    render(<Chatbot />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+    fireEvent.change(screen.getByLabelText('Your message'), {
+      target: { value: 'Review my resume.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByRole('heading', { name: 'Resume Summary' })).toBeInTheDocument();
+    expect(screen.getByText('strong experience').tagName).toBe('STRONG');
+    expect(screen.getByText('React').tagName).toBe('EM');
+    expect(screen.getByText('TypeScript').tagName).toBe('CODE');
+    expect(screen.getByText('Add measurable outcomes to your recent projects.').closest('blockquote'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('list')).toHaveTextContent('Keep the skills section focused.');
+  });
+
   it('expands to full screen and returns to the floating panel', () => {
     render(<Chatbot />);
     fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));

@@ -25,6 +25,22 @@ function validateDocument(file) {
   return null;
 }
 
+function renderInlineContent(text, keyPrefix) {
+  const markdownToken = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  return text.split(markdownToken).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={`${keyPrefix}-${index}`}>{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={`${keyPrefix}-${index}`}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
+
 function renderAssistantContent(content) {
   const lines = content.split(/\r?\n/);
   const blocks = [];
@@ -34,7 +50,8 @@ function renderAssistantContent(content) {
 
   const flushParagraph = () => {
     if (paragraph.length) {
-      blocks.push(<p key={`paragraph-${blocks.length}`}>{paragraph.join(' ')}</p>);
+      const text = paragraph.join(' ');
+      blocks.push(<p key={`paragraph-${blocks.length}`}>{renderInlineContent(text, `paragraph-${blocks.length}`)}</p>);
       paragraph = [];
     }
   };
@@ -43,7 +60,9 @@ function renderAssistantContent(content) {
       const List = listType === 'ordered' ? 'ol' : 'ul';
       blocks.push(
         <List key={`list-${blocks.length}`}>
-          {list.map((item, index) => <li key={index}>{item}</li>)}
+          {list.map((item, index) => (
+            <li key={index}>{renderInlineContent(item, `list-${blocks.length}-${index}`)}</li>
+          ))}
         </List>
       );
       list = [];
@@ -56,6 +75,7 @@ function renderAssistantContent(content) {
     const heading = trimmed.match(/^#{1,3}\s+(.+)$|^([A-Z][^:]{0,40}):$/);
     const bullet = trimmed.match(/^[-*]\s+(.+)$/);
     const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    const quote = trimmed.match(/^>\s?(.+)$/);
     const itemType = bullet ? 'unordered' : numbered ? 'ordered' : null;
 
     if (!trimmed) {
@@ -64,7 +84,20 @@ function renderAssistantContent(content) {
     } else if (heading) {
       flushParagraph();
       flushList();
-      blocks.push(<h3 key={`heading-${blocks.length}`}>{heading[1] || heading[2]}</h3>);
+      const title = heading[1] || heading[2];
+      blocks.push(
+        <h3 key={`heading-${blocks.length}`}>
+          {renderInlineContent(title, `heading-${blocks.length}`)}
+        </h3>
+      );
+    } else if (quote) {
+      flushParagraph();
+      flushList();
+      blocks.push(
+        <blockquote key={`quote-${blocks.length}`}>
+          {renderInlineContent(quote[1], `quote-${blocks.length}`)}
+        </blockquote>
+      );
     } else if (itemType) {
       flushParagraph();
       if (listType && listType !== itemType) flushList();
@@ -78,7 +111,7 @@ function renderAssistantContent(content) {
 
   flushParagraph();
   flushList();
-  return blocks;
+  return <div className="chatbot-response-content">{blocks}</div>;
 }
 
 function Chatbot() {
