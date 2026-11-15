@@ -102,13 +102,57 @@ function parseRecommendations(content, candidateJobs) {
         throw new Error('The recommendation service returned an invalid response.');
     }
 
-    if (!result || !Array.isArray(result.recommendations)) {
+    const findRecommendations = (value, depth = 0) => {
+        if (depth > 3 || !value) {
+            return null;
+        }
+        if (typeof value === 'string') {
+            try {
+                return findRecommendations(JSON.parse(value), depth + 1);
+            } catch {
+                return null;
+            }
+        }
+        if (typeof value !== 'object') {
+            return null;
+        }
+        if (Array.isArray(value)) {
+            return value;
+        }
+        if (Array.isArray(value.recommendations)) {
+            return value.recommendations;
+        }
+        if (value.recommendations && typeof value.recommendations === 'object') {
+            if (typeof value.recommendations.jobId === 'string') {
+                return [value.recommendations];
+            }
+            const recommendations = findRecommendations(value.recommendations, depth + 1);
+            if (recommendations) {
+                return recommendations;
+            }
+        }
+        if (typeof value.jobId === 'string') {
+            return [value];
+        }
+        for (const key of ['recommendations', 'result', 'data', 'output', 'jobs', 'matches', 'recommendedJobs']) {
+            if (value[key] !== undefined) {
+                const recommendations = findRecommendations(value[key], depth + 1);
+                if (recommendations) {
+                    return recommendations;
+                }
+            }
+        }
+        return null;
+    };
+
+    const recommendationList = findRecommendations(result);
+    if (!recommendationList) {
         throw new Error('The recommendation service returned an invalid response.');
     }
 
     const jobsById = new Map(candidateJobs.map((job) => [job._id.toString(), job]));
     const seenIds = new Set();
-    return result.recommendations.slice(0, MAX_RECOMMENDATIONS).map((recommendation) => {
+    return recommendationList.slice(0, MAX_RECOMMENDATIONS).map((recommendation) => {
         const job = jobsById.get(recommendation?.jobId);
         if (
             !job
@@ -284,7 +328,11 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
             try {
                 const message = data?.choices?.[0]?.message;
-                const recommendations = parseRecommendations(message?.parsed || message?.content, candidateJobs);
+                const content = message?.parsed
+                    ?? message?.content
+                    ?? data?.choices?.[0]?.text
+                    ?? data?.output_text;
+                const recommendations = parseRecommendations(content, candidateJobs);
                 return res.json({
                     recommendations,
                     generatedAt: new Date().toISOString()

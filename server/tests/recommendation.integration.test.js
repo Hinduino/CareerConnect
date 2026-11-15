@@ -177,6 +177,46 @@ describe('Personalized job recommendations', () => {
         expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('accepts a wrapped recommendation response when analyzing a resume', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const resume = await createResume(applicantId);
+        const job = await createJob(recruiterId);
+        extractDocumentText.mockResolvedValue({
+            text: 'Five years of React development experience.',
+            truncated: false,
+        });
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: JSON.stringify({
+                            result: {
+                                recommendations: [{
+                                    jobId: job._id.toString(),
+                                    reason: 'Your React experience is relevant.',
+                                    matchedQualifications: ['React experience'],
+                                    gaps: [],
+                                }],
+                            },
+                        }),
+                    },
+                }],
+            }),
+        });
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({ resumeId: resume._id.toString() });
+
+        expect(response.status).toBe(200);
+        expect(response.body.recommendations[0].job.id).toBe(job._id.toString());
+        const sentData = JSON.parse(JSON.parse(global.fetch.mock.calls[0][1].body).messages[1].content);
+        expect(sentData.resumeText).toContain('React development experience');
+    });
+
     it('retries malformed recommendations once with stricter format instructions', async () => {
         const applicantId = await createUser();
         const recruiterId = await createUser({ role: 'recruiter' });
