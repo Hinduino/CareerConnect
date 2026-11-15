@@ -104,6 +104,76 @@ describe('Applicant resume feedback', () => {
         expect(requestBody.messages[1].content).not.toContain('private-resume.pdf');
     });
 
+    it('normalizes text-block responses and JSON wrapped in explanatory text', async () => {
+        const applicantId = await createUser();
+        const resume = await createResume(applicantId);
+        extractDocumentText.mockResolvedValue({ text: 'Resume text', truncated: false });
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: [
+                            { type: 'text', text: 'Feedback:' },
+                            {
+                                type: 'text',
+                                text: '```json\n{"summary":"A clear resume.","strengths":["Relevant experience."],"recommendations":["Add project outcomes."]}\n```',
+                            },
+                        ],
+                    },
+                }],
+            }),
+        });
+
+        const response = await request(app)
+            .post(`/api/resumes/${resume._id}/feedback`)
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(200);
+        expect(response.body.feedback).toEqual({
+            summary: 'A clear resume.',
+            strengths: ['Relevant experience.'],
+            recommendations: ['Add project outcomes.'],
+        });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries malformed feedback once with stricter format instructions', async () => {
+        const applicantId = await createUser();
+        const resume = await createResume(applicantId);
+        extractDocumentText.mockResolvedValue({ text: 'Resume text', truncated: false });
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ choices: [{ message: { content: 'Not JSON' } }] }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    choices: [{
+                        message: {
+                            content: JSON.stringify({
+                                summary: 'A clear resume.',
+                                strengths: ['Relevant experience.'],
+                                recommendations: ['Add project outcomes.'],
+                            }),
+                        },
+                    }],
+                }),
+            });
+
+        const response = await request(app)
+            .post(`/api/resumes/${resume._id}/feedback`)
+            .set('test_user_id', applicantId);
+
+        expect(response.status).toBe(200);
+        expect(response.body.feedback.summary).toBe('A clear resume.');
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        const retryRequest = JSON.parse(global.fetch.mock.calls[1][1].body);
+        expect(retryRequest.temperature).toBe(0);
+        expect(retryRequest.messages[0].content).toMatch(/previous response was not valid feedback JSON/i);
+    });
+
     it('requires an authenticated job seeker and hides resumes owned by other users', async () => {
         const ownerId = await createUser();
         const otherApplicantId = await createUser();
