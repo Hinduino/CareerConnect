@@ -119,6 +119,7 @@ describe('Personalized job recommendations', () => {
         expect(extractedFile.buffer.toString()).toBe('%PDF-1.4 secure test document');
         const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
         expect(requestBody).not.toHaveProperty('response_format');
+        expect(requestBody.temperature).toBe(0);
         const sentData = requestBody.messages[1].content;
         const parsedData = JSON.parse(sentData);
         expect(parsedData.profile.bio).toContain('React experience');
@@ -139,6 +140,82 @@ describe('Personalized job recommendations', () => {
                 category: 'Engineering',
             },
         });
+    });
+
+    it('normalizes text-block responses and JSON surrounded by explanatory text', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const job = await createJob(recruiterId);
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: [
+                            { type: 'text', text: 'Recommended match:' },
+                            {
+                                type: 'text',
+                                text: `\`\`\`json\n{"recommendations":[{"jobId":"${job._id}","reason":"Your React experience is relevant.","matchedQualifications":["React experience"],"gaps":[]}]}\n\`\`\``,
+                            },
+                        ],
+                    },
+                }],
+            }),
+        });
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(response.body.recommendations).toHaveLength(1);
+        expect(response.body.recommendations[0]).toMatchObject({
+            reason: 'Your React experience is relevant.',
+            job: { id: job._id.toString() },
+        });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries malformed recommendations once with stricter format instructions', async () => {
+        const applicantId = await createUser();
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const job = await createJob(recruiterId);
+        const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ choices: [{ message: { content: 'Not JSON' } }] }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    choices: [{
+                        message: {
+                            content: JSON.stringify({
+                                recommendations: [{
+                                    jobId: job._id.toString(),
+                                    reason: 'Your experience is relevant.',
+                                    matchedQualifications: ['Relevant experience'],
+                                    gaps: [],
+                                }],
+                            }),
+                        },
+                    }],
+                }),
+            });
+
+        const response = await request(app)
+            .post('/api/recommendations')
+            .set('test_user_id', applicantId)
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(response.body.recommendations[0].job.id).toBe(job._id.toString());
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        const retryRequest = JSON.parse(global.fetch.mock.calls[1][1].body);
+        expect(retryRequest.messages[0].content).toMatch(/previous response was not valid recommendation JSON/i);
+        errorLog.mockRestore();
     });
 
     it("requires an applicant role and does not expose another user's resume", async () => {
