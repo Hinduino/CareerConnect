@@ -10,6 +10,7 @@ function Navbar({
   onProfileClick,
   onHomeClick,
   onJobsClick,
+  onRecommendationsClick,
   onSavedJobsClick,
   onDashboardClick,
   onPostingsClick,
@@ -67,6 +68,7 @@ function Navbar({
         { label: 'Profile', view: 'profile', action: onProfileClick },
       ]
     : [
+      { label: 'Recommendations', view: 'recommendations', action: onRecommendationsClick },
         { label: 'Find Jobs', view: 'jobs', action: onJobsClick },
         { label: 'Saved Jobs', view: 'saved-jobs', action: onSavedJobsClick },
         { label: 'My Applications', view: 'my-applications', action: onApplicationsClick },

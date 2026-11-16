@@ -101,6 +101,20 @@ describe('Resume routes (multi-resume support)', () => {
         expect(upload.body.error).toMatch(/Only PDF, DOC, and DOCX/);
     });
 
+    it('rejects a PDF upload whose contents do not match its declared format', async () => {
+        const userId = await createUser();
+        const upload = await request(app)
+            .post('/api/resumes')
+            .set('test_user_id', userId)
+            .attach('resume', Buffer.from('not a PDF'), {
+                filename: 'resume.pdf',
+                contentType: 'application/pdf',
+            });
+
+        expect(upload.status).toBe(400);
+        expect(upload.body.error).toMatch(/contents do not match/);
+    });
+
     it('downloads a resume’s bytes only for its owner', async () => {
         const ownerId = await createUser('owner@example.com');
         const otherId = await createUser('other@example.com');

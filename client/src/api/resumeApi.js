@@ -24,6 +24,28 @@ export async function fetchResumes(token) {
   return data;
 }
 
+export async function fetchResumeFeedback(token, resumeId) {
+  const response = await fetch(`${API_BASE}/resumes/${encodeURIComponent(resumeId)}/feedback`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  const data = await parseJsonSafely(response);
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to get resume feedback");
+  }
+  const feedback = data?.feedback;
+  if (
+    typeof feedback?.summary !== "string"
+    || !Array.isArray(feedback.strengths)
+    || !feedback.strengths.every((item) => typeof item === "string")
+    || !Array.isArray(feedback.recommendations)
+    || !feedback.recommendations.every((item) => typeof item === "string")
+  ) {
+    throw new Error("Resume feedback returned an invalid response.");
+  }
+  return feedback;
+}
+
 export function getResumeFileUrl(resumeId, { download = false } = {}) {
   return `${API_BASE}/resumes/${resumeId}/file${download ? "?download=1" : ""}`;
 }

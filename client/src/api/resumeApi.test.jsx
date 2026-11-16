@@ -1,5 +1,6 @@
 import {
   deleteResume,
+  fetchResumeFeedback,
   fetchResumeBlobUrl,
   fetchResumes,
   getResumeFileUrl,
@@ -40,6 +41,24 @@ describe('resumeApi', () => {
   it('surfaces an error when listing resumes fails', async () => {
     global.fetch.mockResolvedValue(response({ error: 'boom' }, { ok: false }));
     await expect(fetchResumes('token')).rejects.toThrow('boom');
+  });
+
+  it('requests resume feedback and validates the response shape', async () => {
+    const feedback = {
+      summary: 'A focused resume.',
+      strengths: ['Clear skills section.'],
+      recommendations: ['Add measurable results.'],
+    };
+    global.fetch.mockResolvedValue(response({ feedback }));
+
+    await expect(fetchResumeFeedback('token', 'resume-1')).resolves.toEqual(feedback);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/resumes/resume-1/feedback',
+      { method: 'POST', headers: { Authorization: 'Bearer token' } },
+    );
+
+    global.fetch.mockResolvedValue(response({ feedback: { summary: 'Incomplete' } }));
+    await expect(fetchResumeFeedback('token', 'resume-1')).rejects.toThrow(/invalid response/i);
   });
 
   it('fetches a resume file with authentication and returns a blob URL', async () => {

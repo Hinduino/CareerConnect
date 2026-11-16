@@ -13,7 +13,7 @@ describe('ProfileView', () => {
   it('renders profile information, media controls, and navigation callbacks', () => {
     const onEdit = jest.fn();
     const onBack = jest.fn();
-    render(
+    const { container } = render(
       <ProfileView
         user={{ name: 'Jane Doe', email: 'jane@example.com', role: 'job_seeker', location: 'Montreal', bio: 'Engineer' }}
         onEdit={onEdit}
@@ -21,6 +21,7 @@ describe('ProfileView', () => {
       />,
     );
 
+    expect(container.querySelector('.profile-container-applicant')).toBeInTheDocument();
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     expect(screen.getByText('Job Seeker')).toBeInTheDocument();
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();

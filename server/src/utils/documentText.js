@@ -1,5 +1,5 @@
 const mammoth = require('mammoth');
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const WordExtractor = require('word-extractor');
 
 async function extractDocumentText(file) {
@@ -7,8 +7,13 @@ async function extractDocumentText(file) {
     let text;
 
     if (extension === 'pdf') {
-        const parsed = await pdfParse(file.buffer);
-        text = parsed.text;
+        const parser = new PDFParse({ data: file.buffer });
+        try {
+            const parsed = await parser.getText({ pageJoiner: '' });
+            text = parsed.text;
+        } finally {
+            await parser.destroy();
+        }
     } else if (extension === 'docx') {
         const parsed = await mammoth.extractRawText({ buffer: file.buffer });
         text = parsed.value;

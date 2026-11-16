@@ -12,6 +12,7 @@ import RecruiterPostings from './components/RecruiterPostings';
 import ApplicationHistory from './components/ApplicationHistory';
 import SavedJobs from './components/SavedJobs';
 import Chatbot from './components/Chatbot';
+import Recommendations from './components/Recommendations';
 
 function App() {
   const { user, isAuthenticated, saveProfile } = useAuth();
@@ -58,6 +59,7 @@ function App() {
         onProfileClick={() => setCurrentView('profile')}
         onHomeClick={() => setCurrentView('home')}
         onJobsClick={() => setCurrentView('jobs')}
+        onRecommendationsClick={() => setCurrentView('recommendations')}
         onSavedJobsClick={() => setCurrentView('saved-jobs')}
         onDashboardClick={() => setCurrentView('recruiter-dashboard')}
         onPostingsClick={() => setCurrentView('recruiter-postings')}
@@ -97,6 +99,14 @@ function App() {
             setSelectedJobId(id);
             setCurrentView('job-detail');
           }}
+        />
+      ) : currentView === 'recommendations' && isAuthenticated && user?.role === 'job_seeker' ? (
+        <Recommendations
+          onViewDetails={(id) => {
+            setSelectedJobId(id);
+            setCurrentView('job-detail');
+          }}
+          onProfileClick={() => setCurrentView('profile')}
         />
       ) : currentView === 'my-applications' && isAuthenticated && user?.role === 'job_seeker' ? (
         <ApplicationHistory

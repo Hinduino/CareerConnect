@@ -7,6 +7,7 @@ jest.mock('./components/Navbar', () => ({
     onProfileClick,
     onHomeClick,
     onDashboardClick,
+    onRecommendationsClick,
     onOpenNotification,
   }) {
     return (
@@ -14,6 +15,7 @@ jest.mock('./components/Navbar', () => ({
         <button onClick={onProfileClick}>Profile navigation</button>
         <button onClick={onHomeClick}>Home navigation</button>
         <button onClick={onDashboardClick}>Dashboard navigation</button>
+        <button onClick={onRecommendationsClick}>Recommendations navigation</button>
         <button
           onClick={() =>
             onOpenNotification({
@@ -51,6 +53,10 @@ jest.mock('./components/JobDetail', () => function MockJobDetail({ jobId }) {
 jest.mock('./components/ApplicationHistory', () => function MockApplicationHistory({ selectedApplicationId }) {
   return <div>Application history: {selectedApplicationId}</div>;
 });
+jest.mock('./components/Recommendations', () => function MockRecommendations() {
+  return <div>Personalized recommendations</div>;
+});
+jest.mock('./components/Chatbot', () => function MockChatbot() { return null; });
 jest.mock('./components/RecruiterDashboard', () => function MockRecruiterDashboard({
   selectedApplicationId,
 }) {
@@ -137,5 +143,19 @@ describe('App notification navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open job notification' }));
 
     expect(screen.getByText('Job details: job-43')).toBeInTheDocument();
+  });
+});
+
+describe('App recommendations navigation', () => {
+  it('opens recommendations for an authenticated job seeker', () => {
+    useAuth.mockReturnValue({
+      user: { name: 'Jane Doe', role: 'job_seeker' },
+      isAuthenticated: true,
+      saveProfile: jest.fn(),
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recommendations navigation' }));
+    expect(screen.getByText('Personalized recommendations')).toBeInTheDocument();
   });
 });
