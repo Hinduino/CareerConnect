@@ -211,6 +211,7 @@ router.post("/:id/feedback", requireRole("job_seeker"), async (req, res) => {
     resumeText: extracted.text,
     resumeTextTruncated: Boolean(extracted.truncated)
   });
+  let aiReplySummary = "no reply";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const prompt = attempt === 0
       ? instructions
@@ -224,11 +225,11 @@ router.post("/:id/feedback", requireRole("job_seeker"), async (req, res) => {
           model: KILO_MODEL,
           messages: [
             { role: "system", content: prompt },
-            { role: "user", content: resumeContext }
+            { role: "user", content: resumeContext },
+            { role: "user", content: "Review the resume above and reply with the JSON object only." }
           ],
           stream: false,
-          temperature: 0,
-          max_tokens: 1200
+          max_tokens: 3000
         }),
         signal: AbortSignal.timeout(KILO_REQUEST_TIMEOUT_MS)
       });
@@ -249,15 +250,19 @@ router.post("/:id/feedback", requireRole("job_seeker"), async (req, res) => {
       }
 
       try {
-        const message = data?.choices?.[0]?.message;
-        const feedback = parseResumeFeedback(message?.parsed || message?.content);
+        const choice = data?.choices?.[0];
+        const message = choice?.message;
+        aiReplySummary = `finish_reason=${choice?.finish_reason || "unknown"}, message_fields=${Object.keys(message || {}).join(",") || "none"}`;
+        const feedback = parseResumeFeedback(
+          message?.parsed || message?.content || message?.reasoning_content || message?.reasoning
+        );
         return res.json({ feedback });
       } catch (error) {
         if (attempt === 0) {
-          console.error("Resume feedback response could not be parsed; retrying with stricter format instructions.");
+          console.error(`Resume feedback response could not be parsed (${aiReplySummary}); retrying with stricter format instructions.`);
           continue;
         }
-        console.error("Resume feedback response failed validation:", error.message);
+        console.error(`Resume feedback response failed validation (${aiReplySummary}):`, error.message);
         return res.status(502).json({ error: error.message });
       }
     } catch (error) {

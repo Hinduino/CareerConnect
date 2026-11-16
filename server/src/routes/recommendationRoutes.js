@@ -289,6 +289,7 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
         }))
     });
 
+    let aiReplySummary = 'no reply';
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const prompt = attempt === 0
             ? instructions
@@ -302,11 +303,11 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
                     model: KILO_MODEL,
                     messages: [
                         { role: 'system', content: prompt },
-                        { role: 'user', content: applicantAndJobData }
+                        { role: 'user', content: applicantAndJobData },
+                        { role: 'user', content: 'Recommend the best matching jobs from the list above and reply with the JSON object only.' }
                     ],
                     stream: false,
-                    temperature: 0,
-                    max_tokens: 1800
+                    max_tokens: 4000
                 }),
                 signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
             });
@@ -327,11 +328,15 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
             }
 
             try {
-                const message = data?.choices?.[0]?.message;
+                const choice = data?.choices?.[0];
+                const message = choice?.message;
+                aiReplySummary = `finish_reason=${choice?.finish_reason || 'unknown'}, message_fields=${Object.keys(message || {}).join(',') || 'none'}`;
                 const content = message?.parsed
-                    ?? message?.content
-                    ?? data?.choices?.[0]?.text
-                    ?? data?.output_text;
+                    || message?.content
+                    || choice?.text
+                    || data?.output_text
+                    || message?.reasoning_content
+                    || message?.reasoning;
                 const recommendations = parseRecommendations(content, candidateJobs);
                 return res.json({
                     recommendations,
@@ -339,10 +344,10 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
                 });
             } catch (error) {
                 if (attempt === 0) {
-                    console.error('Job recommendation response could not be parsed; retrying with stricter format instructions.');
+                    console.error(`Job recommendation response could not be parsed (${aiReplySummary}); retrying with stricter format instructions.`);
                     continue;
                 }
-                console.error('Job recommendation response could not be validated:', error.message);
+                console.error(`Job recommendation response could not be validated (${aiReplySummary}):`, error.message);
                 return res.status(502).json({ error: error.message });
             }
         } catch (error) {

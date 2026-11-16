@@ -2,10 +2,9 @@
 // pdf-parse 2 (PR #61). Uses the real parser in a separate Node process, like
 // documentText.integration.test.js.
 //
-// pdf-parse 2 adds a page marker such as "-- 1 of 1 --" to the text it
-// extracts. Tests written with `it.failing` document the resulting known bugs:
-// they pass while the bug exists and start failing once it is fixed, as a
-// reminder to turn them into normal `it` tests.
+// pdf-parse 2 adds a page marker such as "-- 1 of 1 --" between pages by
+// default. documentText.js turns that off (pageJoiner: ''), so a scanned PDF
+// with no text is still rejected and no markers reach the AI.
 
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
@@ -68,17 +67,11 @@ describe('PDF text extraction with pdf-parse 2', () => {
         expect(extract(TEXT_PDF).text).toContain('Naz Test React developer');
     });
 
-    // Known bug: an image-only (scanned) PDF used to be rejected with
-    // "No readable text". With pdf-parse 2 its extracted text is just the
-    // page marker "-- 1 of 1 --", so it passes the check and is sent to the
-    // AI as if it were a resume.
-    it.failing('KNOWN BUG: rejects a PDF that has no text (e.g. a scanned resume)', () => {
+    it('rejects a PDF that has no text (e.g. a scanned resume)', () => {
         expect(extract(NO_TEXT_PDF)).toEqual({ error: 'No readable text was found in the document' });
     });
 
-    // Known bug: the page marker added by pdf-parse 2 is included in the
-    // resume text sent to the AI.
-    it.failing('KNOWN BUG: does not add page markers to the resume text', () => {
+    it('does not add page markers to the resume text', () => {
         expect(extract(TEXT_PDF).text).not.toMatch(/-- \d+ of \d+ --/);
     });
 });

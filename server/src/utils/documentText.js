@@ -9,7 +9,7 @@ async function extractDocumentText(file) {
     if (extension === 'pdf') {
         const parser = new PDFParse({ data: file.buffer });
         try {
-            const parsed = await parser.getText();
+            const parsed = await parser.getText({ pageJoiner: '' });
             text = parsed.text;
         } finally {
             await parser.destroy();

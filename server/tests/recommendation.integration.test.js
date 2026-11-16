@@ -119,7 +119,7 @@ describe('Personalized job recommendations', () => {
         expect(extractedFile.buffer.toString()).toBe('%PDF-1.4 secure test document');
         const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
         expect(requestBody).not.toHaveProperty('response_format');
-        expect(requestBody.temperature).toBe(0);
+        expect(requestBody.temperature).toBeUndefined();
         const sentData = requestBody.messages[1].content;
         const parsedData = JSON.parse(sentData);
         expect(parsedData.profile.bio).toContain('React experience');

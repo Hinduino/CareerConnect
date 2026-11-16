@@ -170,7 +170,7 @@ describe('Applicant resume feedback', () => {
         expect(response.body.feedback.summary).toBe('A clear resume.');
         expect(global.fetch).toHaveBeenCalledTimes(2);
         const retryRequest = JSON.parse(global.fetch.mock.calls[1][1].body);
-        expect(retryRequest.temperature).toBe(0);
+        expect(retryRequest.temperature).toBeUndefined();
         expect(retryRequest.messages[0].content).toMatch(/previous response was not valid feedback JSON/i);
     });
 
