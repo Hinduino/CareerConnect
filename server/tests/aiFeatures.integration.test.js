@@ -376,19 +376,56 @@ describe('Job recommendations: which jobs are offered', () => {
         expect(sentJobs).toEqual(['Future deadline', 'Open role']);
     });
 
-    it('returns at most 5 recommendations', async () => {
+    // The fake AI recommends every job the server sent it
+    function recommendAllCandidates() {
+        global.fetch.mockImplementation(async (_url, options) => {
+            const messages = JSON.parse(options.body).messages;
+            const candidates = JSON.parse(messages[1].content).candidateJobs;
+            return recommendationReply(candidates.map((job) => job.id));
+        });
+    }
+
+    it('sends at most 5 active postings to the AI, newest first', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
-        const jobIds = [];
         for (let i = 0; i < 7; i += 1) {
-            jobIds.push(await createJob(recruiterId, { title: `Role ${i}` }));
+            await createJob(recruiterId, { title: `Role ${i}`, createdAt: new Date(Date.now() - (7 - i) * DAY) });
         }
         const applicantId = await createUser({ bio: 'React developer' });
-        global.fetch.mockResolvedValue(recommendationReply(jobIds));
+        global.fetch.mockResolvedValue(recommendationReply([]));
+
+        await requestRecommendations(applicantId);
+
+        const sentJobs = JSON.parse(aiPromptData()[1].content).candidateJobs.map((job) => job.title);
+        expect(sentJobs).toEqual(['Role 6', 'Role 5', 'Role 4', 'Role 3', 'Role 2']);
+    });
+
+    it('returns at most 3 recommendations', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        for (let i = 0; i < 7; i += 1) {
+            await createJob(recruiterId, { title: `Role ${i}` });
+        }
+        const applicantId = await createUser({ bio: 'React developer' });
+        recommendAllCandidates();
 
         const response = await requestRecommendations(applicantId);
 
         expect(response.status).toBe(200);
-        expect(response.body.recommendations).toHaveLength(5);
+        expect(response.body.recommendations).toHaveLength(3);
+    });
+
+    it('rejects a job the server did not send to the AI', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const oldestJobId = await createJob(recruiterId, { title: 'Oldest role', createdAt: new Date(Date.now() - 30 * DAY) });
+        for (let i = 0; i < 5; i += 1) {
+            await createJob(recruiterId, { title: `Newer role ${i}` });
+        }
+        const applicantId = await createUser({ bio: 'React developer' });
+        global.fetch.mockResolvedValue(recommendationReply([oldestJobId]));
+
+        const response = await requestRecommendations(applicantId);
+
+        expect(response.status).toBe(502);
+        expect(response.body.error).toBe('The recommendation service returned an invalid job match.');
     });
 
     it('rejects the same job recommended twice', async () => {
