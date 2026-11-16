@@ -9,8 +9,8 @@ const extractDocumentText = require('../utils/documentText');
 const { hasSupportedDocumentSignature } = require('../utils/documentFile');
 
 const router = express.Router();
-const MAX_CANDIDATE_JOBS = 30;
-const MAX_RECOMMENDATIONS = 5;
+const MAX_CANDIDATE_JOBS = 5;
+const MAX_RECOMMENDATIONS = 3;
 const REQUEST_TIMEOUT_MS = 90000;
 const KILO_MODEL = 'kilo-auto/free';
 
