@@ -34,14 +34,15 @@ function ResumeManager() {
 
   const [mostRecent, ...otherResumes] = resumes;
   const mostRecentId = mostRecent?.id;
-  const canGetResumeFeedback = isAuthenticated && user?.role === 'job_seeker';
+  const isJobSeeker = isAuthenticated && user?.role === 'job_seeker';
+  const canGetResumeFeedback = isJobSeeker;
   const visibleFeedback = feedback?.token === token ? feedback : null;
   const visibleFeedbackError = feedbackError?.token === token ? feedbackError.message : '';
   const feedbackLoadingId = feedbackLoading?.token === token ? feedbackLoading.resumeId : '';
 
   useEffect(() => {
     const loadResumes = async () => {
-      if (!token) {
+      if (!token || user?.role !== 'job_seeker') {
         setResumes([]);
         return;
       }
@@ -57,7 +58,7 @@ function ResumeManager() {
       }
     };
     loadResumes();
-  }, [token]);
+  }, [token, user?.role]);
 
   // Whenever the most recent resume changes, fetch its bytes once and keep a
   // blob URL around so it can be rendered inline (an <iframe> for PDFs)
@@ -67,7 +68,7 @@ function ResumeManager() {
     let cancelled = false;
 
     const loadPreview = async () => {
-      if (!token || !mostRecentId) {
+      if (!token || user?.role !== 'job_seeker' || !mostRecentId) {
         setPreviewUrl(null);
         return;
       }
@@ -86,7 +87,12 @@ function ResumeManager() {
       cancelled = true;
       if (activeUrl) URL.revokeObjectURL(activeUrl);
     };
-  }, [token, mostRecentId]);
+  }, [token, user?.role, mostRecentId]);
+
+  // Recruiters do not have resumes and should never see this section
+  if (isAuthenticated && user?.role !== 'job_seeker') {
+    return null;
+  }
 
   const validateFile = (file) => {
     const extension = file.name

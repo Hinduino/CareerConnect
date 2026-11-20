@@ -314,11 +314,12 @@ describe('Resume feedback states', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('does not offer resume feedback to recruiters', async () => {
+  it('does not offer resume feedback to recruiters', () => {
     useAuth.mockReturnValue({ token: 'token', isAuthenticated: true, user: { role: 'recruiter' } });
-    render(<ResumeManager />);
-    await screen.findAllByText('resume.pdf');
+    const { container } = render(<ResumeManager />);
 
+    expect(container).toBeEmptyDOMElement();
+    expect(fetchResumes).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Resume Feedback' })).not.toBeInTheDocument();
     expect(screen.queryByText('AI Resume Feedback')).not.toBeInTheDocument();
   });

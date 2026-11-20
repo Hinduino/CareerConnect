@@ -46,8 +46,7 @@ function ProfileView({ user, onEdit, onBack }) {
           Edit Profile
         </button>
 
-        <ResumeManager />
-      </div>
+        {user?.role === 'job_seeker' && <ResumeManager />}      </div>
     </main>
   );
 }
