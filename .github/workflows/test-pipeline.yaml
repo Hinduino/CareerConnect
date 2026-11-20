@@ -19,12 +19,12 @@ jobs:
 
     steps:
       - name: Checkout Repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: 'npm'
@@ -101,7 +101,7 @@ jobs:
           node -e "const c=require('./coverage/coverage-summary.json').total;const t=75;let f=false;console.log('\\n📊 Coverage Check Results:');console.log('================================');const m={'Lines':c.lines.pct,'Statements':c.statements.pct,'Functions':c.functions.pct,'Branches':c.branches.pct};Object.entries(m).forEach(([k,v])=>{const s=v>=t?'✅':'❌';console.log(s+' '+k+': '+v.toFixed(2)+'% (threshold: '+t+'%)');if(v<t)f=true;});console.log('================================\\n');if(f){console.error('Coverage below threshold!');process.exit(1);}else{console.log('All coverage checks passed!');}"
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
         if: always()
         with:
           files: ./server/coverage/lcov.info
@@ -115,13 +115,13 @@ jobs:
       - name: SonarCloud Scan
         id: sonarcloud
         if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5
 
       # Fails the job (and therefore the PR check) if the SonarCloud quality
       # gate is not green, so a red quality gate blocks merging into main.
       - name: SonarCloud Quality Gate Check
         if: ${{ env.SONAR_TOKEN != '' && steps.sonarcloud.outcome == 'success' }}
-        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
+        uses: SonarSource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b # v1.2.0
         timeout-minutes: 5
 
       # Stage 6: E2E Browser Testing (To be implemented)
