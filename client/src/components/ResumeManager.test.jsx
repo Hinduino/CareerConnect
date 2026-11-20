@@ -67,18 +67,18 @@ describe('ResumeManager', () => {
     expect(await screen.findByText("You haven't saved a resume yet.")).toBeInTheDocument();
   });
 
-  it('only offers resume feedback to applicants', async () => {
+  it('hides the resume manager and skips fetching resumes for recruiters', () => {
     useAuth.mockReturnValue({
       token: 'token',
       isAuthenticated: true,
       user: { role: 'recruiter' },
     });
-    fetchResumes.mockResolvedValue([
-      { id: 'resume-1', originalName: 'resume.pdf', contentType: 'application/pdf', size: 2048 },
-    ]);
-    render(<ResumeManager />);
+    const { container } = render(<ResumeManager />);
 
-    await screen.findByText('resume.pdf');
+    expect(container).toBeEmptyDOMElement();
+    expect(fetchResumes).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'My Resume' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload Resume' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume Feedback' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'AI Resume Feedback' })).not.toBeInTheDocument();
   });
