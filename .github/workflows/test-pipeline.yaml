@@ -8,6 +8,8 @@ on:
 jobs:
   test-suite:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     services:
       mongodb:
@@ -18,6 +20,8 @@ jobs:
     steps:
       - name: Checkout Repository code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
@@ -70,6 +74,10 @@ jobs:
         env:
           MONGO_URI: mongodb://localhost:27017/careerconnect
 
+      - name: Run Client Tests with Coverage
+        working-directory: ./client
+        run: npm run test:coverage
+
       - name: Generate Coverage Report
         working-directory: ./server
         if: always()
@@ -101,9 +109,24 @@ jobs:
           name: server-coverage
           fail_ci_if_error: false
 
-      # Stage 5: E2E Browser Testing (To be implemented)
-      # - name: Install Playwright Browsers (For Stage 5)
+      # Stage 5: Static Analysis (SonarCloud quality gate)
+      # Requires a SONAR_TOKEN repo secret from the SonarCloud project settings.
+      # Both steps are skipped automatically until that secret is configured.
+      - name: SonarCloud Scan
+        id: sonarcloud
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v5
+
+      # Fails the job (and therefore the PR check) if the SonarCloud quality
+      # gate is not green, so a red quality gate blocks merging into main.
+      - name: SonarCloud Quality Gate Check
+        if: ${{ env.SONAR_TOKEN != '' && steps.sonarcloud.outcome == 'success' }}
+        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
+        timeout-minutes: 5
+
+      # Stage 6: E2E Browser Testing (To be implemented)
+      # - name: Install Playwright Browsers (For Stage 6)
       #   run: npx playwright install --with-deps
 
-      # - name: Run Stage 5 (End-to-End Tests)
+      # - name: Run Stage 6 (End-to-End Tests)
       #   run: npm run test:e2e

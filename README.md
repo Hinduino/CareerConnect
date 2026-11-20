@@ -67,6 +67,12 @@ Additional team generated and GenAI features will be documented separately accor
 - Visual Studio Code
 - Microsoft Teams
 
+### Code Quality
+- ESLint
+- Jest (unit & integration testing)
+- Codecov
+- SonarCloud
+
 ## Project Setup
 
 Clone the GitHub repository, install Node.js 20.19.0 or newer, and open two terminal windows in the repository.
@@ -88,3 +94,8 @@ Add a secure `JWT_SECRET` to the `.env` file. The application uses bcryptjs for 
 
 **Development and Collaboration:**  
 Development is managed using Git and GitHub with separate branches, pull requests, and peer reviews before changes are merged into `main`. Jira is used for task and sprint management, while Microsoft Teams is used for team communication and pull request coordination.
+
+**Code Quality Setup (SonarCloud):**  
+The CI pipeline runs a SonarCloud scan on every push and pull request to flag code smells, bugs, and cognitive complexity, then checks the resulting quality gate status and fails the job if it is not green. To enable it for this repository: create/import the project at [sonarcloud.io](https://sonarcloud.io), update `sonar.organization` and `sonar.projectKey` in `sonar-project.properties` to match, then add a `SONAR_TOKEN` repository secret (Settings → Secrets and variables → Actions) generated from your SonarCloud account. Until that secret is configured, the scan and quality gate steps are skipped automatically so they do not block the pipeline.
+
+To actually require a passing quality gate before a PR can be merged, add a branch protection rule on `main` (Settings → Branches → Branch protection rules) that requires the `test-suite` status check to pass — since the quality gate check step fails the job on a red gate, this makes it a required check.
