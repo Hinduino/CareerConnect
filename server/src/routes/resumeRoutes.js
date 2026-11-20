@@ -20,7 +20,7 @@ const KILO_MODEL = "kilo-auto/free";
 const KILO_REQUEST_TIMEOUT_MS = 90000;
 const MAX_FEEDBACK_ITEMS = 8;
 
-router.use(requireAuth);
+router.use(requireAuth, requireRole("job_seeker"));
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -161,8 +161,8 @@ function getFeedbackServiceError(status) {
   return "The resume feedback service could not process this request. Please try again later.";
 }
 
-router.post("/:id/feedback", requireRole("job_seeker"), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) {
+router.post("/:id/feedback", async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "Invalid resume ID." });
   }
 
