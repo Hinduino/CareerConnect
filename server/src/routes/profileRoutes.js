@@ -40,11 +40,13 @@ router.put("/", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    // String() + $eq keep the user-supplied value from ever acting as a
-    // MongoDB query operator (it is already a validated string by here).
+    // String() + $eq keep every value in this filter (including the id
+    // lifted from the verified JWT) from ever acting as a MongoDB query
+    // operator, so Sonar's NoSQL injection sink check treats the whole
+    // object as sanitized, not just the email field.
     const emailTaken = await User.findOne({
       email: { $eq: String(normalizedEmail) },
-      _id: { $ne: req.user.id },
+      _id: { $ne: String(req.user.id) },
     });
     if (emailTaken) {
       return res.status(409).json({ error: "Email already registered" });
