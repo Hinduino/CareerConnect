@@ -50,6 +50,7 @@ describe('Recommendations', () => {
     const onViewDetails = jest.fn();
     render(<Recommendations onViewDetails={onViewDetails} onProfileClick={jest.fn()} />);
 
+    expect(screen.getByRole('img', { name: 'AI-generated' })).toBeInTheDocument();
     expect(await screen.findByText('Your React experience matches this role.')).toBeInTheDocument();
     expect(screen.getByText('Matching qualifications')).toBeInTheDocument();
     expect(screen.getByText('Three years of experience is preferred.')).toBeInTheDocument();

@@ -128,6 +128,7 @@ describe('Navbar applicant recommendations', () => {
       />
     );
 
+    expect(screen.getByRole('img', { name: 'AI-generated' })).toBeInTheDocument();
     fireEvent.click(screen.getByText('Recommendations'));
     expect(onRecommendationsClick).toHaveBeenCalledTimes(1);
   });

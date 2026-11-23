@@ -25,6 +25,32 @@ function validateDocument(file) {
   return null;
 }
 
+function getResumeOptionLabels(resumes) {
+  const nameCounts = new Map();
+  resumes.forEach((resume) => {
+    nameCounts.set(resume.originalName, (nameCounts.get(resume.originalName) || 0) + 1);
+  });
+
+  const labels = resumes.map((resume) => {
+    if (nameCounts.get(resume.originalName) === 1) return resume.originalName;
+
+    const createdAt = resume.createdAt ? new Date(resume.createdAt) : null;
+    const uploadedAt = createdAt && !Number.isNaN(createdAt.getTime())
+      ? ` — uploaded ${createdAt.toLocaleString()}`
+      : '';
+    return `${resume.originalName}${uploadedAt}`;
+  });
+
+  const labelCounts = new Map();
+  labels.forEach((label) => {
+    labelCounts.set(label, (labelCounts.get(label) || 0) + 1);
+  });
+
+  return labels.map((label, index) => (
+    labelCounts.get(label) > 1 ? `${label} (ID ${resumes[index].id})` : label
+  ));
+}
+
 function renderInlineContent(text, keyPrefix) {
   const markdownToken = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
   return text.split(markdownToken).map((part, index) => {
@@ -128,10 +154,15 @@ function Chatbot() {
   const [profileResumeSelection, setProfileResumeSelection] = useState(null);
   const currentProfileResumeData = profileResumeData?.token === token ? profileResumeData : null;
   const profileResumes = currentProfileResumeData?.resumes || [];
+  const profileResumeOptionLabels = getResumeOptionLabels(profileResumes);
   const profileResumesLoading = Boolean(isOpen && token && !currentProfileResumeData);
   const profileResumesLoadError = Boolean(currentProfileResumeData?.error);
   const profileResumeId = profileResumeSelection?.token === token
     ? profileResumeSelection.id
+    : '';
+  const selectedProfileResumeIndex = profileResumes.findIndex((resume) => resume.id === profileResumeId);
+  const selectedProfileResumeLabel = selectedProfileResumeIndex >= 0
+    ? profileResumeOptionLabels[selectedProfileResumeIndex]
     : '';
 
   useEffect(() => {
@@ -312,8 +343,10 @@ function Chatbot() {
                       ? 'Saved resumes unavailable'
                       : 'Do not use a saved resume'}
                 </option>
-                {profileResumes.map((resume) => (
-                  <option key={resume.id} value={resume.id}>{resume.originalName}</option>
+                {profileResumes.map((resume, index) => (
+                  <option key={resume.id} value={resume.id}>
+                    {profileResumeOptionLabels[index]}
+                  </option>
                 ))}
               </select>
               {!profileResumesLoading && !profileResumesLoadError && profileResumes.length === 0 && (
@@ -342,7 +375,7 @@ function Chatbot() {
           {profileResumeId && (
             <div className="chatbot-document">
               <span>
-                Using profile resume: {profileResumes.find((resume) => resume.id === profileResumeId)?.originalName}
+                Using profile resume: {selectedProfileResumeLabel}
               </span>
               <button
                 type="button"
@@ -359,15 +392,30 @@ function Chatbot() {
         </section>
       )}
 
-      <button
-        className="chatbot-launcher"
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-expanded={isOpen}
-        aria-label={isOpen ? 'Close CareerConnect chat' : 'Open CareerConnect chat'}
-      >
-        <span aria-hidden="true">{isOpen ? '×' : 'Chat'}</span>
-      </button>
+      {!isOpen && (
+        <button
+          className="chatbot-launcher"
+          type="button"
+          onClick={() => setIsOpen(true)}
+          aria-expanded={false}
+          aria-label="Open CareerConnect chat"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6a7.5 7.5 0 1 1 17-3.5Z" />
+            <path d="m12 7.5.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3Z" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

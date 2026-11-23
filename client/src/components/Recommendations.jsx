@@ -154,9 +154,14 @@ function Recommendations({ onViewDetails, onProfileClick }) {
     <main className="job-listing-container" style={pageStyle}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
-          <h2>Personalized Recommendations</h2>
+          <h2>
+            Personalized Recommendations
+            <span className="recommendations-ai-indicator" role="img" aria-label="AI-generated">
+              ✨
+            </span>
+          </h2>
           <p style={{ color: '#64748b' }}>
-            Active opportunities matched to your profile and selected resume.
+            AI-generated recommendations matched to your profile and selected resume.
           </p>
         </div>
         <button

@@ -26,7 +26,9 @@ describe('CareerConnect chatbot', () => {
     sendChatMessage.mockResolvedValue('Try tailoring your resume to each role.');
     render(<Chatbot />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+    const launcher = screen.getByRole('button', { name: 'Open CareerConnect chat' });
+    expect(launcher.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    fireEvent.click(launcher);
     expect(screen.getByRole('region', { name: 'CareerConnect AI chat' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Your message'), {
@@ -80,6 +82,17 @@ describe('CareerConnect chatbot', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
     expect(panel).not.toHaveClass('chatbot-panel-fullscreen');
+  });
+
+  it('shows only one close button while the chat is open', () => {
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    expect(screen.getAllByRole('button', { name: /close/i })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Open CareerConnect chat' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close chat' }));
+    expect(screen.getByRole('button', { name: 'Open CareerConnect chat' })).toBeInTheDocument();
   });
 
   it('attaches a document to the next chat message', async () => {
@@ -139,6 +152,33 @@ describe('CareerConnect chatbot', () => {
     });
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
     expect(screen.getByRole('list')).toHaveTextContent('Strong React skills.');
+  });
+
+  it('distinguishes saved resumes with duplicate filenames', async () => {
+    const sameUploadTime = '2026-10-22T11:00:00.000Z';
+    const olderUploadTime = '2026-10-21T11:00:00.000Z';
+    fetchResumes.mockResolvedValue([
+      { id: 'resume-latest', originalName: 'resume.pdf', createdAt: sameUploadTime },
+      { id: 'resume-same-time', originalName: 'resume.pdf', createdAt: sameUploadTime },
+      { id: 'resume-older', originalName: 'resume.pdf', createdAt: olderUploadTime },
+    ]);
+    render(<Chatbot />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open CareerConnect chat' }));
+
+    const resumeSelect = await screen.findByLabelText('Resume from your profile');
+    const optionLabels = Array.from(resumeSelect.options)
+      .slice(1)
+      .map((option) => option.textContent);
+
+    expect(optionLabels).toEqual([
+      `resume.pdf — uploaded ${new Date(sameUploadTime).toLocaleString()} (ID resume-latest)`,
+      `resume.pdf — uploaded ${new Date(sameUploadTime).toLocaleString()} (ID resume-same-time)`,
+      `resume.pdf — uploaded ${new Date(olderUploadTime).toLocaleString()}`,
+    ]);
+
+    fireEvent.change(resumeSelect, { target: { value: 'resume-same-time' } });
+    expect(screen.getByText(/Using profile resume: resume\.pdf/))
+      .toHaveTextContent('ID resume-same-time');
   });
 
   it('rejects unsupported document extensions and MIME types', () => {
