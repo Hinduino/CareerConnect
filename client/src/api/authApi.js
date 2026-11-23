@@ -1,62 +1,33 @@
-const API_BASE = "http://localhost:3000/api";
+import { requestJson } from "./http";
 
-async function parseJsonSafely(response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-export async function registerUser(email, password, confirmPassword, role) {
-  const response = await fetch(`${API_BASE}/register`, {
+export function registerUser(email, password, confirmPassword, role) {
+  return requestJson("/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, confirmPassword, role }),
+    body: { email, password, confirmPassword, role },
+    fallbackError: "Failed to register",
   });
-
-  const data = await parseJsonSafely(response);
-  if (!response.ok) {
-    throw new Error(data?.error || "Failed to register");
-  }
-  return data;
 }
 
-export async function loginUser(email, password) {
-  const response = await fetch(`${API_BASE}/login`, {
+export function loginUser(email, password) {
+  return requestJson("/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
+    fallbackError: "Failed to log in",
   });
-  const data = await parseJsonSafely(response);
-  if (!response.ok) {
-    throw new Error(data?.error || "Failed to log in");
-  }
-  return data;
 }
 
-export async function updateProfile(token, profile) {
-  const response = await fetch(`${API_BASE}/profile`, {
+export function updateProfile(token, profile) {
+  return requestJson("/profile", {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(profile),
+    token,
+    body: profile,
+    fallbackError: "Failed to save profile",
   });
-  const data = await parseJsonSafely(response);
-  if (!response.ok) {
-    throw new Error(data?.error || "Failed to save profile");
-  }
-  return data;
 }
 
-export async function fetchProfile(token) {
-  const response = await fetch(`${API_BASE}/profile`, {
-    headers: { Authorization: `Bearer ${token}` },
+export function fetchProfile(token) {
+  return requestJson("/profile", {
+    token,
+    fallbackError: "Failed to load profile",
   });
-  const data = await parseJsonSafely(response);
-  if (!response.ok) {
-    throw new Error(data?.error || "Failed to load profile");
-  }
-  return data;
 }

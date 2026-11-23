@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createJob, deleteJob, fetchMyJobs, fetchJobApplications, updateJob } from '../api/jobApi';
-import { fetchApplicationResumeBlobUrl,  updateApplicationStatus, } from '../api/applicationApi';
+import { fetchApplicationResumeBlobUrl, updateApplicationStatus } from '../api/applicationApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
+import { downloadBlobUrl } from '../utils/fileDownload';
 import JobPostingForm from './JobPostingForm';
+import ApplicantProfilePanel from './ApplicantProfilePanel';
 
 function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null }) {
   const { token } = useAuth();
@@ -22,6 +24,8 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
   const [applicationsError, setApplicationsError] = useState('');
   const [applicationSearch, setApplicationSearch] = useState('');
   const [applicationStatusFilter, setApplicationStatusFilter] = useState('All');
+  // Application whose applicant profile is open in the dialog, if any.
+  const [profileApplicationId, setProfileApplicationId] = useState(null);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -157,13 +161,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
   const handleDownloadResume = async (application) => {
     try {
       const blobUrl = await fetchApplicationResumeBlobUrl(token, application._id, { download: true });
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = application.resume?.originalName || 'resume';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      downloadBlobUrl(blobUrl, application.resume?.originalName || 'resume');
     } catch (err) {
       setApplicationsError(err.message);
     }
@@ -322,6 +320,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                       <th>Date Applied</th>
                       <th>Resume</th>
                       <th>Status</th>
+                      <th>Profile</th>
                     </tr>
                   </thead>
 
@@ -367,6 +366,16 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                             <option value="Rejected">Rejected</option>
                           </select>
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => setProfileApplicationId(application._id)}
+                            aria-label={`View profile of ${application.applicant?.name || 'Applicant'}`}
+                          >
+                            View Profile
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -411,6 +420,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                       <th>Date Applied</th>
                       <th>Resume</th>
                       <th>Application Status</th>
+                      <th>Profile</th>
                     </tr>
                   </thead>
 
@@ -457,6 +467,17 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                             <option value="Rejected">Rejected</option>
                           </select>
                         </td>
+
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => setProfileApplicationId(application._id)}
+                            aria-label={`View profile of ${application.applicant?.name || 'Applicant'}`}
+                          >
+                            View Profile
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -482,6 +503,12 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
               setMode('list');
               setEditingJob(null);
             }}
+          />
+        )}
+        {profileApplicationId && (
+          <ApplicantProfilePanel
+            applicationId={profileApplicationId}
+            onClose={() => setProfileApplicationId(null)}
           />
         )}
       </div>
