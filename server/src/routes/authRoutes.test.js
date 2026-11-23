@@ -120,7 +120,7 @@ describe("POST /api/login", () => {
     expect(res.body.user).toMatchObject({ email: "jane@example.com" });
     expect(res.body.user).not.toHaveProperty("password");
     // The lookup uses the normalized email, so logins are case-insensitive.
-    expect(User.findOne).toHaveBeenCalledWith({ email: "jane@example.com" });
+    expect(User.findOne).toHaveBeenCalledWith({ email: { $eq: "jane@example.com" } });
     expect(jwt.verify(res.body.token, process.env.JWT_SECRET).userId).toBe(storedUser._id);
   });
 

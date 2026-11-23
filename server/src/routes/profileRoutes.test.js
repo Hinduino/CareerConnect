@@ -100,7 +100,7 @@ describe("PUT /api/profile", () => {
     });
     // The uniqueness check must exclude the user's own account.
     expect(User.findOne).toHaveBeenCalledWith({
-      email: "jane.smith@example.com",
+      email: { $eq: "jane.smith@example.com" },
       _id: { $ne: userId },
     });
   });

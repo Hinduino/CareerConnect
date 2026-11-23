@@ -2,7 +2,9 @@
 // updates, kept in one place so the register and profile routes can't drift
 // apart.
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Linear-time pattern: the dot never overlaps the surrounding character
+// classes, so the regex can't backtrack super-linearly on hostile input.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 const VALID_ROLES = ["job_seeker", "recruiter"];
 
 // Every password rule with the message returned when it fails. Order matters:

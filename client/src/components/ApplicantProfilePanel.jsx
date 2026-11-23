@@ -43,7 +43,8 @@ function ApplicantProfilePanel({ applicationId, onClose }) {
       }
     };
 
-    loadApplicant();
+    // Errors are handled inside loadApplicant, so the promise is safe to drop.
+    void loadApplicant();
 
     return () => {
       cancelled = true;

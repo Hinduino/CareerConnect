@@ -40,7 +40,8 @@ router.put("/", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    const emailTaken = await User.findOne({ email: normalizedEmail, _id: { $ne: req.user.id } });
+    // $eq keeps the user-supplied value from ever acting as a query operator.
+    const emailTaken = await User.findOne({ email: { $eq: normalizedEmail }, _id: { $ne: req.user.id } });
     if (emailTaken) {
       return res.status(409).json({ error: "Email already registered" });
     }
