@@ -20,8 +20,9 @@ router.post("/register", async (req, res, next) => {
       return res.status(400).json({ error: validation.error });
     }
 
-    // $eq keeps the user-supplied value from ever acting as a query operator.
-    const existingUser = await User.findOne({ email: { $eq: validation.email } });
+    // String() + $eq keep the user-supplied value from ever acting as a
+    // MongoDB query operator (it is already a validated string by here).
+    const existingUser = await User.findOne({ email: { $eq: String(validation.email) } });
     if (existingUser) {
       return res.status(409).json({ error: "Email already registered" });
     }
@@ -52,7 +53,7 @@ router.post("/login", async (req, res, next) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email: { $eq: normalizeEmail(email) } });
+    const user = await User.findOne({ email: { $eq: String(normalizeEmail(email)) } });
 
     // One shared message for "no such account" and "wrong password" so the
     // endpoint can't be used to probe which emails are registered.
