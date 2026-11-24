@@ -10,12 +10,17 @@ jest.mock('../api/jobApi', () => ({
 }));
 jest.mock('../api/applicationApi', () => ({
   fetchApplicationResumeBlobUrl: jest.fn(),
+  fetchApplicationApplicant: jest.fn(),
+  updateApplicationStatus: jest.fn(),
 }));
 
 const RecruiterDashboard = require('./RecruiterDashboard').default;
 const { useAuth } = require('../context/AuthContext');
 const { fetchMyJobs, createJob, updateJob, deleteJob, fetchJobApplications } = require('../api/jobApi');
-const { fetchApplicationResumeBlobUrl } = require('../api/applicationApi');
+const {
+  fetchApplicationResumeBlobUrl,
+  fetchApplicationApplicant,
+} = require('../api/applicationApi');
 
 const sampleJob = {
   _id: 'job-1',
@@ -117,6 +122,49 @@ it('does not delete a posting when confirmation is cancelled', async () => {
 
   expect(deleteJob).not.toHaveBeenCalled();
   expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+  });
+
+  it("opens an applicant's profile from the applications table", async () => {
+    const sampleApplication = {
+      _id: 'app-1',
+      status: 'Applied',
+      createdAt: new Date().toISOString(),
+      applicant: { name: 'Jane Doe', email: 'jane@example.com', location: 'Montreal' },
+      resume: { originalName: 'jane-resume.pdf' },
+    };
+    fetchJobApplications.mockResolvedValue([sampleApplication]);
+    fetchApplicationApplicant.mockResolvedValue({
+      applicant: {
+        id: 'user-1',
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        role: 'job_seeker',
+        location: 'Montreal',
+        bio: 'Full-stack developer',
+      },
+      resume: { originalName: 'jane-resume.pdf', contentType: 'application/pdf', size: 2048 },
+      application: {
+        _id: 'app-1',
+        status: 'Applied',
+        job: { _id: 'job-1', title: 'Backend Engineer', company: 'Acme Corp' },
+      },
+    });
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+
+    await screen.findByText('Jane Doe');
+    fireEvent.click(screen.getByText('View Profile'));
+
+    expect(await screen.findByText('Applicant Profile')).toBeInTheDocument();
+    expect(fetchApplicationApplicant).toHaveBeenCalledWith('token', 'app-1');
+    expect(await screen.findByText('Full-stack developer')).toBeInTheDocument();
+
+    // Closing the dialog returns to the applications table.
+    fireEvent.click(screen.getByText('Close'));
+    expect(screen.queryByText('Applicant Profile')).not.toBeInTheDocument();
   });
 
   it('lists applications for a posting and downloads an attached resume', async () => {

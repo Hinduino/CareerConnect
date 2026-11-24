@@ -3,6 +3,8 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const JobPosting = require('../models/JobPosting');
+const User = require('../models/User');
+const { toProfile } = require('../utils/userProfile');
 const { sanitizeFilename } = require('../utils/fileUtils');
 const {
   createApplication,
@@ -182,6 +184,55 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error fetching applications' });
+  }
+});
+
+// Lets a recruiter review an applicant's full professional profile directly
+// from one of their applications. Access is only granted through applications
+// to the recruiter's own job postings.
+router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+      return res.status(400).json({ error: 'Invalid application ID' });
+    }
+
+    const application = await Application.findById(req.params.applicationId);
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    const job = await JobPosting.findById(application.job);
+    if (!job || job.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You can only view applicants for your own job postings' });
+    }
+
+    const applicant = await User.findById(application.applicant);
+    if (!applicant) {
+      return res.status(404).json({ error: 'Applicant not found' });
+    }
+
+    // Resume metadata only; the bytes stay behind the dedicated resume route.
+    const resume = application.resume && application.resume.originalName
+      ? {
+          originalName: application.resume.originalName,
+          contentType: application.resume.contentType,
+          size: application.resume.size,
+        }
+      : null;
+
+    res.status(200).json({
+      applicant: toProfile(applicant),
+      resume,
+      application: {
+        _id: application._id,
+        status: application.status,
+        createdAt: application.createdAt,
+        job: { _id: job._id, title: job.title, company: job.company },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error fetching applicant profile' });
   }
 });
 

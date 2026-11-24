@@ -1529,3 +1529,29 @@ body {
     flex: 1 1 100%;
   }
 }
+/* Applicant profile dialog opened from the recruiter's application tables. */
+.applicant-profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+
+.applicant-profile-panel {
+  max-width: 540px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.applicant-resume-section {
+  margin-top: 1.25rem;
+}
+
+.applicant-resume-section .btn-secondary {
+  margin-right: 0.5rem;
+}
