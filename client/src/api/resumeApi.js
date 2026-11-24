@@ -1,4 +1,5 @@
 import { API_BASE, authHeaders, parseJsonSafely } from "./http";
+import { fetchAiResponse } from "./aiRequest";
 
 // All of the logged-in user's saved resumes (metadata only).
 export async function fetchResumes(token) {
