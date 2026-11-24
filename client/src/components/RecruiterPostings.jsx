@@ -11,6 +11,31 @@ import { updateApplicationStatus, fetchApplicationResumeBlobUrl } from '../api/a
 
 const STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
 
+// REFACTORED (SCRUM-383): Extracted repeated form styles and initial form state to reduce duplication
+const INITIAL_FORM_DATA = {
+  title: '',
+  company: '',
+  location: '',
+  category: 'Software Engineering',
+  description: '',
+  requirements: '',
+};
+
+const LABEL_STYLE = {
+  display: 'block',
+  fontSize: '0.85rem',
+  fontWeight: '600',
+  marginBottom: '4px',
+};
+
+const INPUT_STYLE = {
+  width: '100%',
+  padding: '8px',
+  borderRadius: '4px',
+  border: '1px solid #cbd5e1',
+  boxSizing: 'border-box',
+};
+
 function RecruiterPostings() {
   const { token } = useAuth();
   const authToken = token || localStorage.getItem('token');
@@ -18,28 +43,29 @@ function RecruiterPostings() {
   const [postings, setPostings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // REFACTORED (SCRUM-383): Replaced blocking window.alert() calls with non-blocking inline feedback banner
+  const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Form modal state (Create / Edit)
   const [modalOpen, setModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    company: '',
-    location: '',
-    category: '',
-    description: '',
-    requirements: '',
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   // Candidate Drilldown View
   const [selectedJob, setSelectedJob] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
+  // REFACTORED (SCRUM-383): Added dateFilter state so recruiters can filter applicants by date as well as status
+  const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState('desc');
 
   const refreshPostings = () => setReloadKey((prev) => prev + 1);
+
+  const showFeedback = (type, message) => {
+    setFeedback({ type, message });
+  };
 
   // Fetch postings on load
   useEffect(() => {
@@ -69,21 +95,13 @@ function RecruiterPostings() {
     };
   }, [authToken, reloadKey]);
 
-  // Open modal for Create
   const handleOpenCreate = () => {
     setEditingJob(null);
-    setFormData({
-      title: '',
-      company: '',
-      location: '',
-      category: 'Software Engineering',
-      description: '',
-      requirements: '',
-    });
+    setFormData(INITIAL_FORM_DATA);
+    setFeedback(null);
     setModalOpen(true);
   };
 
-  // Open modal for Edit
   const handleOpenEdit = (job, e) => {
     e.stopPropagation();
     setEditingJob(job);
@@ -95,66 +113,72 @@ function RecruiterPostings() {
       description: job.description || '',
       requirements: job.requirements || '',
     });
+    setFeedback(null);
     setModalOpen(true);
   };
 
-  // Save Create or Edit
   const handleSaveJob = async (e) => {
     e.preventDefault();
     try {
       if (editingJob) {
         await updateJobPosting(authToken, editingJob._id, formData);
+        showFeedback('success', 'Job posting updated successfully.');
       } else {
         await createJobPosting(authToken, formData);
+        showFeedback('success', 'Job posting created successfully.');
       }
       setModalOpen(false);
       refreshPostings();
     } catch (err) {
-      alert(err.message || 'Error saving job posting.');
+      // REMOVED: alert(err.message || 'Error saving job posting.')
+      showFeedback('error', err.message || 'Error saving job posting.');
     }
   };
 
-  // Toggle Archive
   const handleToggleArchive = async (jobId, e) => {
     e.stopPropagation();
     try {
-      await toggleArchiveJobPosting(authToken, jobId);
+      const result = await toggleArchiveJobPosting(authToken, jobId);
       refreshPostings();
       if (selectedJob && selectedJob._id === jobId) {
         setSelectedJob(null);
       }
+      showFeedback('success', result?.message || 'Posting archive status updated.');
     } catch (err) {
-      alert(err.message || 'Error archiving posting.');
+      // REMOVED: alert(err.message || 'Error archiving posting.')
+      showFeedback('error', err.message || 'Error archiving posting.');
     }
   };
 
-  // Drilldown: View Applicants for Posting
   const handleSelectJob = async (job) => {
     setSelectedJob(job);
     setLoadingApplicants(true);
+    setDateFilter('');
+    setStatusFilter('All');
     try {
       const data = await fetchApplicantsForJob(authToken, job._id);
       setApplicants(data || []);
     } catch (err) {
-      alert(err.message || 'Error fetching applicants.');
+      // REMOVED: alert(err.message || 'Error fetching applicants.')
+      showFeedback('error', err.message || 'Error fetching applicants.');
     } finally {
       setLoadingApplicants(false);
     }
   };
 
-  // Recruiter updates candidate status
   const handleUpdateStatus = async (applicationId, newStatus) => {
     try {
       await updateApplicationStatus(authToken, applicationId, newStatus);
       const data = await fetchApplicantsForJob(authToken, selectedJob._id);
       setApplicants(data || []);
       refreshPostings();
+      showFeedback('success', `Applicant status updated to "${newStatus}".`);
     } catch (err) {
-      alert(err.message || 'Error updating status.');
+      // REMOVED: alert(err.message || 'Error updating status.')
+      showFeedback('error', err.message || 'Error updating status.');
     }
   };
 
-  // Download resume blob
   const handleDownloadResume = async (applicationId) => {
     try {
       const url = await fetchApplicationResumeBlobUrl(authToken, applicationId, { download: true });
@@ -164,14 +188,22 @@ function RecruiterPostings() {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      // REFACTORED (SCRUM-383): Revoke object URL after download to prevent browser memory leaks
+      URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err.message || 'Error downloading resume.');
+      // REMOVED: alert(err.message || 'Error downloading resume.')
+      showFeedback('error', err.message || 'Error downloading resume.');
     }
   };
 
-  // Filtered & sorted applicants
+  // REFACTORED (SCRUM-383): Added date filtering (YYYY-MM-DD match) alongside status filter and date sort
   const filteredApplicants = applicants
     .filter((app) => (statusFilter === 'All' ? true : app.status === statusFilter))
+    .filter((app) => {
+      if (!dateFilter) return true;
+      const appliedDate = new Date(app.createdAt).toISOString().slice(0, 10);
+      return appliedDate === dateFilter;
+    })
     .sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
@@ -188,6 +220,7 @@ function RecruiterPostings() {
           </p>
         </div>
         <button
+          type="button"
           onClick={handleOpenCreate}
           style={{
             padding: '10px 18px',
@@ -203,10 +236,37 @@ function RecruiterPostings() {
         </button>
       </div>
 
+      {/* Inline Feedback Banner (replaces window.alert) */}
+      {feedback && (
+        <div
+          role={feedback.type === 'error' ? 'alert' : 'status'}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '10px 14px',
+            marginBottom: '16px',
+            borderRadius: '6px',
+            backgroundColor: feedback.type === 'error' ? '#fee2e2' : '#dcfce7',
+            color: feedback.type === 'error' ? '#b91c1c' : '#15803d',
+            border: `1px solid ${feedback.type === 'error' ? '#fca5a5' : '#bbf7d0'}`,
+          }}
+        >
+          <span>{feedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            aria-label="Dismiss message"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700', color: 'inherit' }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {loading && <p style={{ color: '#64748b' }}>Loading job postings...</p>}
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
-      {/* Postings Table */}
       {!loading && !error && postings.length === 0 && (
         <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
           <p style={{ color: '#64748b', margin: 0 }}>You haven&apos;t created any job postings yet.</p>
@@ -262,6 +322,7 @@ function RecruiterPostings() {
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                     <button
+                      type="button"
                       onClick={(e) => handleOpenEdit(job, e)}
                       style={{
                         marginRight: '8px',
@@ -276,6 +337,7 @@ function RecruiterPostings() {
                       Edit
                     </button>
                     <button
+                      type="button"
                       onClick={(e) => handleToggleArchive(job._id, e)}
                       style={{
                         padding: '6px 12px',
@@ -300,16 +362,17 @@ function RecruiterPostings() {
       {/* Drilldown: Candidate List for Selected Posting */}
       {selectedJob && (
         <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', background: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <h3 style={{ margin: 0 }}>Applicants for: {selectedJob.title}</h3>
               <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.85rem' }}>
                 Review candidates, change statuses, and download resumes.
               </p>
             </div>
-            {/* Filter and Sort controls */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            {/* Filter by Status, Filter by Date, and Sort controls */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <select
+                aria-label="Filter applicants by status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
@@ -321,7 +384,16 @@ function RecruiterPostings() {
                 <option value="Offer Declined">Offer Declined</option>
               </select>
 
+              <input
+                type="date"
+                aria-label="Filter applicants by application date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+              />
+
               <select
+                aria-label="Sort applicants by date"
                 value={dateSort}
                 onChange={(e) => setDateSort(e.target.value)}
                 style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
@@ -361,6 +433,7 @@ function RecruiterPostings() {
                     </td>
                     <td style={{ padding: '12px' }}>
                       <select
+                        aria-label={`Status for ${app.applicant?.name || 'Applicant'}`}
                         value={app.status}
                         onChange={(e) => handleUpdateStatus(app._id, e.target.value)}
                         style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
@@ -375,6 +448,7 @@ function RecruiterPostings() {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       <button
+                        type="button"
                         onClick={() => handleDownloadResume(app._id)}
                         style={{
                           padding: '4px 10px',
@@ -422,80 +496,87 @@ function RecruiterPostings() {
             <h3 style={{ margin: '0 0 16px 0' }}>{editingJob ? 'Edit Job Posting' : 'Create New Job Posting'}</h3>
 
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
+              <label htmlFor="posting-title" style={LABEL_STYLE}>
                 Job Title *
               </label>
               <input
+                id="posting-title"
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                style={INPUT_STYLE}
               />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
+                <label htmlFor="posting-company" style={LABEL_STYLE}>
                   Company *
                 </label>
                 <input
+                  id="posting-company"
                   type="text"
                   required
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                  style={INPUT_STYLE}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
+                <label htmlFor="posting-location" style={LABEL_STYLE}>
                   Location *
                 </label>
                 <input
+                  id="posting-location"
                   type="text"
                   required
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                  style={INPUT_STYLE}
                 />
               </div>
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
+              <label htmlFor="posting-category" style={LABEL_STYLE}>
                 Category *
               </label>
               <input
+                id="posting-category"
                 type="text"
                 required
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                style={INPUT_STYLE}
               />
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
+              <label htmlFor="posting-description" style={LABEL_STYLE}>
                 Description *
               </label>
               <textarea
+                id="posting-description"
                 required
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                style={INPUT_STYLE}
               />
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}>
-                Requirements
+              <label htmlFor="posting-requirements" style={LABEL_STYLE}>
+                Requirements *
               </label>
               <textarea
+                id="posting-requirements"
+                required
                 rows={2}
                 value={formData.requirements}
                 onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                style={INPUT_STYLE}
               />
             </div>
 

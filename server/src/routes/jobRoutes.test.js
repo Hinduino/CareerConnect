@@ -26,6 +26,7 @@ const {
 const jobRoutes = require("./jobRoutes");
 
 const recruiterId = "507f1f77bcf86cd799439011";
+const otherRecruiterId = "507f1f77bcf86cd799439099";
 const jobSeekerId = "507f1f77bcf86cd799439022";
 const jobId = "507f1f77bcf86cd799439033";
 const jobFields = {
@@ -41,7 +42,7 @@ const app = express();
 app.use(express.json());
 app.use("/api/jobs", jobRoutes);
 
-describe("job routes error handling", () => {
+describe("job routes", () => {
   let consoleError;
 
   beforeEach(() => {
@@ -53,6 +54,51 @@ describe("job routes error handling", () => {
     consoleError.mockRestore();
   });
 
+  it("rejects invalid ObjectIds on parameterized routes", async () => {
+    const response = await request(app).get("/api/jobs/not-a-valid-id");
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("Invalid job ID");
+  });
+
+  it("returns 404 when requesting details for a non-existent job", async () => {
+    JobPosting.findById.mockResolvedValue(null);
+
+    const response = await request(app).get(`/api/jobs/${jobId}`);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("Job not found");
+  });
+
+  it("filters public job listings by keyword, location, and category while excluding archived jobs", async () => {
+    const sortMock = jest.fn().mockResolvedValue([{ _id: jobId, ...jobFields }]);
+    JobPosting.find.mockReturnValue({ sort: sortMock });
+
+    const response = await request(app)
+      .get("/api/jobs")
+      .query({ keyword: "Software", location: "Remote", category: "Engineering" });
+
+    expect(response.status).toBe(200);
+    expect(JobPosting.find).toHaveBeenCalledWith({
+      isArchived: { $ne: true },
+      title: { $regex: "Software", $options: "i" },
+      location: { $regex: "Remote", $options: "i" },
+      category: "Engineering",
+    });
+    expect(sortMock).toHaveBeenCalledWith({ createdAt: -1 });
+  });
+
+  it("returns a validation error when required fields are missing or blank", async () => {
+    const response = await request(app)
+      .post("/api/jobs")
+      .set("x-test-user-id", recruiterId)
+      .send({ ...jobFields, title: "   " });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("title is required");
+    expect(JobPosting.create).not.toHaveBeenCalled();
+  });
+
   it("returns a validation error for an invalid due date when creating a job", async () => {
     const response = await request(app)
       .post("/api/jobs")
@@ -62,6 +108,20 @@ describe("job routes error handling", () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe("dueDate must be a valid date");
     expect(JobPosting.create).not.toHaveBeenCalled();
+  });
+
+  it("returns a validation error when updating a job with missing required fields", async () => {
+    JobPosting.findById.mockResolvedValue({
+      postedBy: { toString: () => recruiterId },
+    });
+
+    const response = await request(app)
+      .put(`/api/jobs/${jobId}`)
+      .set("x-test-user-id", recruiterId)
+      .send({ ...jobFields, requirements: "" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("requirements is required");
   });
 
   it("returns a validation error for an invalid due date when updating a job", async () => {
@@ -140,6 +200,18 @@ describe("job routes error handling", () => {
     expect(removedResponse.body.message).toBe("Job removed from favorites");
   });
 
+  it("returns recruiter postings with applicant counts on GET /api/jobs/mine", async () => {
+    const postings = [{ _id: jobId, ...jobFields, applicantCount: 4 }];
+    JobPosting.aggregate.mockResolvedValue(postings);
+
+    const response = await request(app)
+      .get("/api/jobs/mine")
+      .set("x-test-user-id", recruiterId);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(postings);
+  });
+
   it("returns a server error when recruiter posting aggregation fails", async () => {
     JobPosting.aggregate.mockRejectedValue(new Error("database unavailable"));
 
@@ -149,6 +221,36 @@ describe("job routes error handling", () => {
 
     expect(response.status).toBe(500);
     expect(response.body.error).toBe("Server error fetching your job postings");
+  });
+
+  it("toggles archive status when owned by the recruiter and blocks non-owners", async () => {
+    const ownedJob = {
+      _id: jobId,
+      postedBy: { toString: () => recruiterId },
+      isArchived: false,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    JobPosting.findById.mockResolvedValueOnce(ownedJob);
+
+    const archiveRes = await request(app)
+      .patch(`/api/jobs/${jobId}/archive`)
+      .set("x-test-user-id", recruiterId);
+
+    expect(archiveRes.status).toBe(200);
+    expect(ownedJob.isArchived).toBe(true);
+    expect(archiveRes.body.message).toBe("Job posting archived successfully");
+
+    JobPosting.findById.mockResolvedValueOnce({
+      _id: jobId,
+      postedBy: { toString: () => otherRecruiterId },
+    });
+
+    const forbiddenRes = await request(app)
+      .patch(`/api/jobs/${jobId}/archive`)
+      .set("x-test-user-id", recruiterId);
+
+    expect(forbiddenRes.status).toBe(403);
+    expect(forbiddenRes.body.error).toBe("You can only archive your own job postings");
   });
 
   it("returns server errors when listing or fetching a job fails", async () => {
@@ -217,6 +319,20 @@ describe("job routes error handling", () => {
     expect(response.body.error).toBe("Server error toggling archive status");
   });
 
+  it("returns 403 when updating a job owned by another recruiter", async () => {
+    JobPosting.findById.mockResolvedValue({
+      postedBy: { toString: () => otherRecruiterId },
+    });
+
+    const response = await request(app)
+      .put(`/api/jobs/${jobId}`)
+      .set("x-test-user-id", recruiterId)
+      .send(jobFields);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("You can only modify your own job postings");
+  });
+
   it("returns a server error when saving an updated job fails", async () => {
     JobPosting.findById.mockResolvedValue({
       postedBy: { toString: () => recruiterId },
@@ -264,6 +380,33 @@ describe("job routes error handling", () => {
 
     expect(response.status).toBe(200);
     expect(job.dueDate).toBeNull();
+  });
+
+  it("deletes a job owned by the recruiter and blocks non-owners", async () => {
+    const deleteOne = jest.fn().mockResolvedValue(undefined);
+    JobPosting.findById.mockResolvedValueOnce({
+      postedBy: { toString: () => recruiterId },
+      deleteOne,
+    });
+
+    const deleteRes = await request(app)
+      .delete(`/api/jobs/${jobId}`)
+      .set("x-test-user-id", recruiterId);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.message).toBe("Job posting deleted successfully");
+    expect(deleteOne).toHaveBeenCalled();
+
+    JobPosting.findById.mockResolvedValueOnce({
+      postedBy: { toString: () => otherRecruiterId },
+    });
+
+    const forbiddenRes = await request(app)
+      .delete(`/api/jobs/${jobId}`)
+      .set("x-test-user-id", recruiterId);
+
+    expect(forbiddenRes.status).toBe(403);
+    expect(forbiddenRes.body.error).toBe("You can only delete your own job postings");
   });
 
   it("returns a server error when deleting a job fails", async () => {
