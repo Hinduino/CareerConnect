@@ -13,9 +13,7 @@ module.exports = {
         'src/**/*.js',
         '!src/**/*.test.js',
         '!src/**/index.js',
-        '!src/server.js',
-        '!src/routes/chatRoutes.js',
-        '!src/utils/documentText.js'
+        '!src/server.js'
       ],
       coverageThreshold: {
         global: {
@@ -60,9 +58,7 @@ module.exports = {
         'src/**/*.js',
         '!src/**/*.test.js',
         '!src/**/index.js',
-        '!src/server.js',
-        '!src/routes/chatRoutes.js',
-        '!src/utils/documentText.js'
+        '!src/server.js'
       ],
       coverageThreshold: {
         global: {
