@@ -88,6 +88,16 @@ describe("generateResumeFeedback", () => {
       .rejects.toThrow("The AI service returned an invalid feedback response.");
   });
 
+  it("rejects feedback with empty recommendation lists", async () => {
+    fetchMock.mockResolvedValue(responseWithMessage({
+      content: '{"summary":"Clear","strengths":[],"recommendations":[]}'
+    }));
+
+    await expect(generateResumeFeedback({ text: "resume" }))
+      .rejects.toThrow("The AI service returned incomplete feedback.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     [429, /temporarily busy/],
     [401, /rejected the request/],

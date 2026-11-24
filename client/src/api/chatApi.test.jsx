@@ -19,11 +19,12 @@ describe('chatApi', () => {
     global.fetch.mockResolvedValue(response({ reply: '  Hi there.  ' }));
 
     await expect(sendChatMessage(messages, null, null, '')).resolves.toBe('Hi there.');
-    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3000/api/chat', {
+    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3000/api/chat', expect.objectContaining({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages }),
-    });
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it('sends a document and profile resume as multipart form data with authorization', async () => {
@@ -77,6 +78,13 @@ describe('chatApi', () => {
     await expect(sendChatMessage([], 'token', null, '')).rejects.toThrow(
       'The chat assistant could not respond'
     );
+  });
+
+  it('surfaces an actionable error when the network is unavailable', async () => {
+    global.fetch.mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(sendChatMessage([], null, null, ''))
+      .rejects.toThrow('Could not connect to the chat assistant.');
   });
 
   it('uses a fallback error when a successful response is not JSON', async () => {

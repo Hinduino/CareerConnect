@@ -54,11 +54,32 @@ describe('resumeApi', () => {
     await expect(fetchResumeFeedback('token', 'resume-1')).resolves.toEqual(feedback);
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:3000/api/resumes/resume-1/feedback',
-      { method: 'POST', headers: { Authorization: 'Bearer token' } },
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token' },
+        signal: expect.any(AbortSignal),
+      }),
     );
 
     global.fetch.mockResolvedValue(response({ feedback: { summary: 'Incomplete' } }));
     await expect(fetchResumeFeedback('token', 'resume-1')).rejects.toThrow(/invalid response/i);
+
+    global.fetch.mockResolvedValue(response({
+      feedback: { ...feedback, summary: '   ' },
+    }));
+    await expect(fetchResumeFeedback('token', 'resume-1')).rejects.toThrow(/invalid response/i);
+
+    global.fetch.mockResolvedValue(response({
+      feedback: { ...feedback, strengths: [] },
+    }));
+    await expect(fetchResumeFeedback('token', 'resume-1')).rejects.toThrow(/invalid response/i);
+  });
+
+  it('maps resume feedback network failures to a useful message', async () => {
+    global.fetch.mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(fetchResumeFeedback('token', 'resume-1'))
+      .rejects.toThrow('Could not connect to resume feedback.');
   });
 
   it('fetches a resume file with authentication and returns a blob URL', async () => {

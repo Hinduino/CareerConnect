@@ -1,3 +1,5 @@
+import { fetchAiResponse } from "./aiRequest";
+
 const API_BASE = "http://localhost:3000/api";
 
 export async function sendChatMessage(messages, token, document, profileResumeId) {
@@ -17,11 +19,11 @@ export async function sendChatMessage(messages, token, document, profileResumeId
     body = JSON.stringify({ messages });
   }
 
-  const response = await fetch(`${API_BASE}/chat`, {
+  const response = await fetchAiResponse(`${API_BASE}/chat`, {
     method: "POST",
     headers,
     body,
-  });
+  }, "the chat assistant");
 
   let data;
   try {

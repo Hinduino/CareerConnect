@@ -1,6 +1,7 @@
 const MAX_RECOMMENDATIONS = 3;
 const REQUEST_TIMEOUT_MS = 90000;
 const KILO_MODEL = "kilo-auto/free";
+const { requestKiloCompletion } = require("./kiloClient");
 
 function getRecommendationServiceError(status) {
   if (status === 401 || status === 403) {
@@ -198,21 +199,16 @@ async function generateRecommendations({ profile, resumeContext, candidateJobs }
 
     let response;
     try {
-      response = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: KILO_MODEL,
-          messages: [
-            { role: "system", content: prompt },
-            { role: "user", content: applicantAndJobData },
-            { role: "user", content: "Recommend the best matching jobs from the list above and reply with the JSON object only." }
-          ],
-          stream: false,
-          max_tokens: 4000
-        }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-      });
+      response = await requestKiloCompletion({
+        model: KILO_MODEL,
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: applicantAndJobData },
+          { role: "user", content: "Recommend the best matching jobs from the list above and reply with the JSON object only." }
+        ],
+        stream: false,
+        max_tokens: 4000
+      }, REQUEST_TIMEOUT_MS);
     } catch (error) {
       console.error(`Job recommendation request failed (${error.name || "Error"}).`);
       const message = error.name === "TimeoutError" || error.name === "AbortError"

@@ -1,6 +1,7 @@
 const KILO_MODEL = "kilo-auto/free";
 const KILO_REQUEST_TIMEOUT_MS = 90000;
 const MAX_FEEDBACK_ITEMS = 8;
+const { requestKiloCompletion } = require("./kiloClient");
 
 function parseResumeFeedback(content) {
   if (content && typeof content === "object" && !Array.isArray(content)) {
@@ -62,6 +63,7 @@ function parseResumeFeedback(content) {
 
   const validTextList = (items) => (
     Array.isArray(items)
+    && items.length > 0
     && items.every((item) => typeof item === "string" && item.trim())
   );
   if (
@@ -116,21 +118,16 @@ async function generateResumeFeedback(extracted) {
 
     let response;
     try {
-      response = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: KILO_MODEL,
-          messages: [
-            { role: "system", content: prompt },
-            { role: "user", content: resumeContext },
-            { role: "user", content: "Review the resume above and reply with the JSON object only." }
-          ],
-          stream: false,
-          max_tokens: 3000
-        }),
-        signal: AbortSignal.timeout(KILO_REQUEST_TIMEOUT_MS)
-      });
+      response = await requestKiloCompletion({
+        model: KILO_MODEL,
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: resumeContext },
+          { role: "user", content: "Review the resume above and reply with the JSON object only." }
+        ],
+        stream: false,
+        max_tokens: 3000
+      }, KILO_REQUEST_TIMEOUT_MS);
     } catch (error) {
       console.error(`Resume feedback request failed (${error.name || "Error"}).`);
       const message = error.name === "TimeoutError" || error.name === "AbortError"

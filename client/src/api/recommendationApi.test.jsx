@@ -19,14 +19,15 @@ describe('recommendationApi', () => {
     global.fetch.mockResolvedValue(response(result));
 
     await expect(fetchRecommendations('token', 'resume-1')).resolves.toEqual(result);
-    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3000/api/recommendations', {
+    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3000/api/recommendations', expect.objectContaining({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer token',
       },
       body: JSON.stringify({ resumeId: 'resume-1' }),
-    });
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it('uses profile information alone when no resume is selected', async () => {
@@ -36,10 +37,16 @@ describe('recommendationApi', () => {
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ resumeId: null });
   });
 
-  it('returns null when a successful response is not JSON', async () => {
+  it('rejects a successful response that is not valid recommendations', async () => {
     global.fetch.mockResolvedValue(response(null, { jsonError: new Error('invalid JSON') }));
 
-    await expect(fetchRecommendations('token', null)).resolves.toBeNull();
+    await expect(fetchRecommendations('token', null)).rejects.toThrow(/invalid response/i);
+  });
+
+  it('rejects malformed recommendation entries before the UI renders them', async () => {
+    global.fetch.mockResolvedValue(response({ recommendations: [null] }));
+
+    await expect(fetchRecommendations('token', null)).rejects.toThrow(/invalid response/i);
   });
 
   it('uses the server error when a request fails', async () => {
@@ -56,5 +63,12 @@ describe('recommendationApi', () => {
     await expect(fetchRecommendations('token', null)).rejects.toThrow(
       'Failed to load job recommendations.'
     );
+  });
+
+  it('surfaces an actionable error when the network is unavailable', async () => {
+    global.fetch.mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(fetchRecommendations('token', null))
+      .rejects.toThrow('Could not connect to job recommendations.');
   });
 });
