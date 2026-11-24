@@ -447,6 +447,114 @@ describe('CareerConnect Integration Tests', () => {
         });
     });
 
+    // 4b. Recruiter viewing an applicant's profile through an application
+    describe('GET /api/applications/:applicationId/applicant', () => {
+        let recruiter;
+        let otherRecruiter;
+        let applicant;
+        let applicationId;
+
+        beforeEach(async () => {
+            recruiter = await User.create({
+                email: 'owning-recruiter@example.com',
+                password: 'password123',
+                name: 'Owning Recruiter',
+                role: 'recruiter',
+            });
+            otherRecruiter = await User.create({
+                email: 'other-recruiter@example.com',
+                password: 'password123',
+                name: 'Other Recruiter',
+                role: 'recruiter',
+            });
+            applicant = await User.create({
+                email: 'profile-applicant@example.com',
+                password: 'password123',
+                name: 'Jane Applicant',
+                role: 'job_seeker',
+                location: 'Montreal',
+                bio: 'Full-stack developer',
+            });
+            const job = await JobPosting.create({
+                title: 'Software Engineer',
+                company: 'Acme Corp',
+                location: 'Remote',
+                category: 'Engineering',
+                description: 'Build great things.',
+                requirements: 'Experience required',
+                postedBy: recruiter._id,
+            });
+            const resume = await Resume.create({
+                user: applicant._id,
+                originalName: 'jane-resume.pdf',
+                contentType: 'application/pdf',
+                size: 4,
+                data: Buffer.from('test'),
+            });
+            const submission = await request(app)
+                .post('/api/applications')
+                .set('test_user_id', applicant._id.toString())
+                .send({ jobId: job._id.toString(), resumeId: resume._id.toString() });
+            expect(submission.status).toBe(201);
+            applicationId = submission.body.application._id;
+        });
+
+        it('lets the recruiter who posted the job view the applicant profile and resume info', async () => {
+            const res = await request(app)
+                .get(`/api/applications/${applicationId}/applicant`)
+                .set('test_user_id', recruiter._id.toString());
+
+            expect(res.status).toBe(200);
+            expect(res.body.applicant).toMatchObject({
+                name: 'Jane Applicant',
+                email: 'profile-applicant@example.com',
+                role: 'job_seeker',
+                location: 'Montreal',
+                bio: 'Full-stack developer',
+            });
+            expect(res.body.applicant).not.toHaveProperty('password');
+            expect(res.body.resume).toMatchObject({
+                originalName: 'jane-resume.pdf',
+                contentType: 'application/pdf',
+            });
+            expect(res.body.application).toMatchObject({
+                _id: applicationId,
+                status: 'Applied',
+                job: { title: 'Software Engineer', company: 'Acme Corp' },
+            });
+        });
+
+        it('blocks recruiters who do not own the job posting', async () => {
+            const res = await request(app)
+                .get(`/api/applications/${applicationId}/applicant`)
+                .set('test_user_id', otherRecruiter._id.toString());
+
+            expect(res.status).toBe(403);
+        });
+
+        it('blocks job seekers from the recruiter-only endpoint', async () => {
+            const res = await request(app)
+                .get(`/api/applications/${applicationId}/applicant`)
+                .set('test_user_id', applicant._id.toString());
+
+            expect(res.status).toBe(403);
+        });
+
+        it('requires authentication', async () => {
+            const res = await request(app).get(`/api/applications/${applicationId}/applicant`);
+
+            expect(res.status).toBe(401);
+        });
+
+        it('returns 404 for an application that does not exist', async () => {
+            const res = await request(app)
+                .get(`/api/applications/${new mongoose.Types.ObjectId()}/applicant`)
+                .set('test_user_id', recruiter._id.toString());
+
+            expect(res.status).toBe(404);
+        });
+    });
+
     // 4. Authenticated Profile Tests
     describe('GET /api/profile and PUT /api/profile', () => {
         let userId;
@@ -488,6 +596,52 @@ describe('CareerConnect Integration Tests', () => {
             expect(res.body.user.email).toBe('newemail@example.com');
             expect(res.body.user.role).toBe('recruiter');
             expect(res.body.user.location).toBe('Montreal');
+        });
+
+        it('should store a mixed-case email lowercased so login still works', async () => {
+            const res = await request(app)
+                .put('/api/profile')
+                .set('test_user_id', userId)
+                .send({
+                    email: ' Jane.Doe@Example.COM ',
+                    name: 'Jane Doe',
+                    role: 'job_seeker'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.user.email).toBe('jane.doe@example.com');
+        });
+
+        it('should reject a malformed email address', async () => {
+            const res = await request(app)
+                .put('/api/profile')
+                .set('test_user_id', userId)
+                .send({
+                    email: 'not-an-email',
+                    role: 'job_seeker'
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty('error', 'Please enter a valid email address');
+        });
+
+        it('should reject an email already used by another account', async () => {
+            await User.create({
+                email: 'taken@example.com',
+                password: 'password123',
+                role: 'job_seeker'
+            });
+
+            const res = await request(app)
+                .put('/api/profile')
+                .set('test_user_id', userId)
+                .send({
+                    email: 'taken@example.com',
+                    role: 'job_seeker'
+                });
+
+            expect(res.status).toBe(409);
+            expect(res.body).toHaveProperty('error', 'Email already registered');
         });
 
         it('should reject invalid values (like wrong roles)', async () => {

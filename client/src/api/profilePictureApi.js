@@ -1,16 +1,4 @@
-const API_BASE = "http://localhost:3000/api";
-
-async function parseJsonSafely(response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function authHeaders(token) {
-  return { Authorization: `Bearer ${token}` };
-}
+import { API_BASE, authHeaders, parseJsonSafely } from "./http";
 
 export async function fetchProfilePictureMetadata(token) {
   const response = await fetch(`${API_BASE}/profile/picture`, {

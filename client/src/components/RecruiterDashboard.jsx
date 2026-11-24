@@ -1,9 +1,57 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createJob, deleteJob, fetchMyJobs, fetchJobApplications, updateJob } from '../api/jobApi';
-import { fetchApplicationResumeBlobUrl,  updateApplicationStatus, } from '../api/applicationApi';
+import { fetchApplicationResumeBlobUrl, updateApplicationStatus } from '../api/applicationApi';
 import { formatPostedDate, formatUpdatedDate } from '../utils/dateUtils';
+import { downloadBlobUrl } from '../utils/fileDownload';
 import JobPostingForm from './JobPostingForm';
+import ApplicantProfilePanel from './ApplicantProfilePanel';
+
+const APPLICATION_STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
+
+// The resume, status, and profile action cells shared by both application
+// tables (the per-job view and the all-applications overview).
+function ApplicationActionCells({ application, onDownloadResume, onStatusChange, onViewProfile }) {
+  const applicantName = application.applicant?.name || 'Applicant';
+
+  return (
+    <>
+      <td>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => onDownloadResume(application)}
+        >
+          Download Resume
+        </button>
+      </td>
+
+      <td>
+        <select
+          className="recruiter-status-select"
+          value={application.status}
+          onChange={(e) => onStatusChange(application._id, e.target.value)}
+          aria-label={`Application status for ${applicantName}`}
+        >
+          {APPLICATION_STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+      </td>
+
+      <td>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => onViewProfile(application._id)}
+          aria-label={`View profile of ${applicantName}`}
+        >
+          View Profile
+        </button>
+      </td>
+    </>
+  );
+}
 
 function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null }) {
   const { token } = useAuth();
@@ -22,6 +70,8 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
   const [applicationsError, setApplicationsError] = useState('');
   const [applicationSearch, setApplicationSearch] = useState('');
   const [applicationStatusFilter, setApplicationStatusFilter] = useState('All');
+  // Application whose applicant profile is open in the dialog, if any.
+  const [profileApplicationId, setProfileApplicationId] = useState(null);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -157,13 +207,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
   const handleDownloadResume = async (application) => {
     try {
       const blobUrl = await fetchApplicationResumeBlobUrl(token, application._id, { download: true });
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = application.resume?.originalName || 'resume';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      downloadBlobUrl(blobUrl, application.resume?.originalName || 'resume');
     } catch (err) {
       setApplicationsError(err.message);
     }
@@ -296,11 +340,9 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                 aria-label="Filter by application status"
               >
                 <option value="All">All Statuses</option>
-                <option value="Applied">Applied</option>
-                <option value="Under Review">Under Review</option>
-                <option value="Interview">Interview</option>
-                <option value="Offered">Offered</option>
-                <option value="Rejected">Rejected</option>
+                {APPLICATION_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
               </select>
             </div>
             {allApplicationsLoading ? (
@@ -322,6 +364,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                       <th>Date Applied</th>
                       <th>Resume</th>
                       <th>Status</th>
+                      <th>Profile</th>
                     </tr>
                   </thead>
 
@@ -342,31 +385,12 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                         <td>
                           {new Date(application.createdAt).toLocaleDateString()}
                         </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => handleDownloadResume(application)}
-                          >
-                            Download Resume
-                          </button>
-                        </td>
-                        <td>
-                          <select
-                            className="recruiter-status-select"
-                            value={application.status}
-                            onChange={(e) =>
-                              handleStatusChange(application._id, e.target.value)
-                            }
-                            aria-label={`Application status for ${application.applicant?.name || 'Applicant'}`}
-                          >
-                            <option value="Applied">Applied</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Interview">Interview</option>
-                            <option value="Offered">Offered</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                        </td>
+                        <ApplicationActionCells
+                          application={application}
+                          onDownloadResume={handleDownloadResume}
+                          onStatusChange={handleStatusChange}
+                          onViewProfile={setProfileApplicationId}
+                        />
                       </tr>
                     ))}
                   </tbody>
@@ -411,6 +435,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                       <th>Date Applied</th>
                       <th>Resume</th>
                       <th>Application Status</th>
+                      <th>Profile</th>
                     </tr>
                   </thead>
 
@@ -431,32 +456,12 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                           {new Date(application.createdAt).toLocaleDateString()}
                         </td>
 
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => handleDownloadResume(application)}
-                          >
-                            Download Resume
-                          </button>
-                        </td>
-
-                        <td>
-                          <select
-                            className="recruiter-status-select"
-                            value={application.status}
-                            onChange={(e) =>
-                              handleStatusChange(application._id, e.target.value)
-                            }
-                            aria-label={`Application status for ${application.applicant?.name || 'Applicant'}`}
-                          >
-                            <option value="Applied">Applied</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Interview">Interview</option>
-                            <option value="Offered">Offered</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                        </td>
+                        <ApplicationActionCells
+                          application={application}
+                          onDownloadResume={handleDownloadResume}
+                          onStatusChange={handleStatusChange}
+                          onViewProfile={setProfileApplicationId}
+                        />
                       </tr>
                     ))}
                   </tbody>
@@ -482,6 +487,12 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
               setMode('list');
               setEditingJob(null);
             }}
+          />
+        )}
+        {profileApplicationId && (
+          <ApplicantProfilePanel
+            applicationId={profileApplicationId}
+            onClose={() => setProfileApplicationId(null)}
           />
         )}
       </div>

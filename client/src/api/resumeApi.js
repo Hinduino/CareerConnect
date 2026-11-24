@@ -1,16 +1,4 @@
-const API_BASE = "http://localhost:3000/api";
-
-async function parseJsonSafely(response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function authHeaders(token) {
-  return { Authorization: `Bearer ${token}` };
-}
+import { API_BASE, authHeaders, parseJsonSafely } from "./http";
 
 // All of the logged-in user's saved resumes (metadata only).
 export async function fetchResumes(token) {
