@@ -7,15 +7,12 @@ function summarizeAiReply(choice) {
 function logInvalidAiResponse(serviceName, summary, error, attempt) {
   if (attempt === 0) {
     console.error(
-      `${serviceName} response could not be parsed (${summary}); retrying with stricter format instructions.`
+      "AI response could not be parsed. Retrying with stricter format instructions."
     );
     return true;
   }
 
-  console.error(
-    `${serviceName} response could not be validated (${summary}):`,
-    error.message
-  );
+  console.error("AI response could not be validated.");
   return false;
 }
 
