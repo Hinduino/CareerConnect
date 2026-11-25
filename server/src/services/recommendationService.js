@@ -4,6 +4,7 @@ const KILO_MODEL = "kilo-auto/free";
 const { requestKiloCompletion } = require("./kiloClient");
 const parseJsonResponse = require("../utils/parseJsonResponse");
 const stripJsonCodeFence = require("../utils/stripJsonCodeFence");
+const { logInvalidAiResponse, summarizeAiReply } = require("./aiResponseUtils");
 
 function getRecommendationServiceError(status) {
   if (status === 401 || status === 403) {
@@ -195,7 +196,7 @@ async function generateRecommendations({ profile, resumeContext, candidateJobs }
     try {
       const choice = data?.choices?.[0];
       const message = choice?.message;
-      aiReplySummary = `finish_reason=${choice?.finish_reason || "unknown"}, message_fields=${Object.keys(message || {}).join(",") || "none"}`;
+      aiReplySummary = summarizeAiReply(choice);
       const content = message?.parsed
         || message?.content
         || choice?.text
@@ -208,11 +209,9 @@ async function generateRecommendations({ profile, resumeContext, candidateJobs }
         generatedAt: new Date().toISOString()
       };
     } catch (error) {
-      if (attempt === 0) {
-        console.error(`Job recommendation response could not be parsed (${aiReplySummary}); retrying with stricter format instructions.`);
+      if (logInvalidAiResponse("Job recommendation", aiReplySummary, error, attempt)) {
         continue;
       }
-      console.error(`Job recommendation response could not be validated (${aiReplySummary}):`, error.message);
       throw error;
     }
   }

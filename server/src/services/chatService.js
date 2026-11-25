@@ -12,6 +12,7 @@ const MAX_DOCUMENT_JOBS = MAX_JOBS;
 const MAX_DOCUMENT_APPLICATIONS = 10;
 const MAX_DOCUMENT_HISTORY = 6;
 const { requestKiloCompletion } = require("./kiloClient");
+const { summarizeAiReply } = require("./aiResponseUtils");
 
 function getAssistantReply(message) {
   if (typeof message?.content === "string") {
@@ -160,9 +161,7 @@ async function generateAssistantReply({ conversation, documentContext, careerCon
   const reply = getAssistantReply(message);
   if (!reply) {
     const finishReason = choice?.finish_reason || "unknown";
-    console.error(
-      `Kilo AI returned no displayable text (finish_reason=${finishReason}, message_fields=${Object.keys(message || {}).join(",") || "none"})`
-    );
+    console.error(`Kilo AI returned no displayable text (${summarizeAiReply(choice)})`);
 
     if (finishReason === "length") {
       throw new Error("Kilo AI used its response limit before producing a reply. Please try a shorter message.");

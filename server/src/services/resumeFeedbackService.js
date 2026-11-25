@@ -4,6 +4,7 @@ const MAX_FEEDBACK_ITEMS = 8;
 const { requestKiloCompletion } = require("./kiloClient");
 const parseJsonResponse = require("../utils/parseJsonResponse");
 const stripJsonCodeFence = require("../utils/stripJsonCodeFence");
+const { logInvalidAiResponse, summarizeAiReply } = require("./aiResponseUtils");
 
 function parseResumeFeedback(content) {
   if (content && typeof content === "object" && !Array.isArray(content)) {
@@ -113,16 +114,14 @@ async function generateResumeFeedback(extracted) {
     try {
       const choice = data?.choices?.[0];
       const message = choice?.message;
-      aiReplySummary = `finish_reason=${choice?.finish_reason || "unknown"}, message_fields=${Object.keys(message || {}).join(",") || "none"}`;
+      aiReplySummary = summarizeAiReply(choice);
       return parseResumeFeedback(
         message?.parsed || message?.content || message?.reasoning_content || message?.reasoning
       );
     } catch (error) {
-      if (attempt === 0) {
-        console.error(`Resume feedback response could not be parsed (${aiReplySummary}); retrying with stricter format instructions.`);
+      if (logInvalidAiResponse("Resume feedback", aiReplySummary, error, attempt)) {
         continue;
       }
-      console.error(`Resume feedback response failed validation (${aiReplySummary}):`, error.message);
       throw error;
     }
   }
