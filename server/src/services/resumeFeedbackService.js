@@ -18,7 +18,7 @@ function parseResumeFeedback(content) {
     throw new Error("The AI service returned an invalid feedback response.");
   }
 
-  const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1").trim();
+  const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)```$/i, "$1").trim();
   const feedback = parseJsonResponse(jsonContent, "The AI service returned unreadable feedback.");
 
   const validTextList = (items) => (

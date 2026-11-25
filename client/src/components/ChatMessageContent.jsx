@@ -1,3 +1,7 @@
+const HEADING_PATTERN = /^(?:#{1,3}\s+(.+)|([A-Z][^:]{0,40}):)$/;
+const BULLET_PATTERN = /^[-*]\s+(.+)$/;
+const NUMBERED_PATTERN = /^\d+[.)]\s+(.+)$/;
+
 function renderInlineContent(text, keyPrefix) {
   const markdownToken = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
   return text.split(markdownToken).map((part, index) => {
@@ -45,9 +49,9 @@ function ChatMessageContent({ content }) {
 
   lines.forEach((line) => {
     const trimmed = line.trim();
-    const heading = trimmed.match(/^#{1,3}\s+(.+)$|^([A-Z][^:]{0,40}):$/);
-    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
-    const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    const heading = trimmed.match(HEADING_PATTERN);
+    const bullet = trimmed.match(BULLET_PATTERN);
+    const numbered = trimmed.match(NUMBERED_PATTERN);
     const quote = trimmed.match(/^>\s?(.+)$/);
     const itemType = bullet ? 'unordered' : numbered ? 'ordered' : null;
 

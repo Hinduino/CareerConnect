@@ -43,7 +43,7 @@ function parseRecommendations(content, candidateJobs) {
   }
 
   if (typeof content === "string") {
-    const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1").trim();
+    const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)```$/i, "$1").trim();
     result = parseJsonResponse(jsonContent, "The recommendation service returned unreadable results.");
   } else if (!content || typeof content !== "object") {
     throw new Error("The recommendation service returned an invalid response.");
