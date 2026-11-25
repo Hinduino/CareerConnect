@@ -82,6 +82,18 @@ describe("generateResumeFeedback", () => {
       .toMatch(/previous response was not valid feedback JSON/i);
   });
 
+  it("strips a JSON code fence and surrounding whitespace", async () => {
+    fetchMock.mockResolvedValue(responseWithMessage({
+      content: '  ```JSON \n{"summary":"Clear","strengths":["Strong"],"recommendations":["Improve"]} \n```  '
+    }));
+
+    await expect(generateResumeFeedback({ text: "resume" })).resolves.toEqual({
+      summary: "Clear",
+      strengths: ["Strong"],
+      recommendations: ["Improve"]
+    });
+  });
+
   it("rejects malformed, empty, and incomplete AI feedback", async () => {
     fetchMock.mockResolvedValue(responseWithMessage({ content: "" }));
     await expect(generateResumeFeedback({ text: "resume" }))

@@ -3,6 +3,7 @@ const REQUEST_TIMEOUT_MS = 90000;
 const KILO_MODEL = "kilo-auto/free";
 const { requestKiloCompletion } = require("./kiloClient");
 const parseJsonResponse = require("../utils/parseJsonResponse");
+const stripJsonCodeFence = require("../utils/stripJsonCodeFence");
 
 function getRecommendationServiceError(status) {
   if (status === 401 || status === 403) {
@@ -43,7 +44,7 @@ function parseRecommendations(content, candidateJobs) {
   }
 
   if (typeof content === "string") {
-    const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)```$/i, "$1").trim();
+    const jsonContent = stripJsonCodeFence(content);
     result = parseJsonResponse(jsonContent, "The recommendation service returned unreadable results.");
   } else if (!content || typeof content !== "object") {
     throw new Error("The recommendation service returned an invalid response.");

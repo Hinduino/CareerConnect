@@ -1,6 +1,49 @@
-const HEADING_PATTERN = /^(?:#{1,3}\s+(.+)|([A-Z][^:]{0,40}):)$/;
-const BULLET_PATTERN = /^[-*]\s+(.+)$/;
-const NUMBERED_PATTERN = /^\d+[.)]\s+(.+)$/;
+function isWhitespace(character) {
+  return typeof character === 'string' && character !== '' && character.trim() === '';
+}
+
+function getHeadingTitle(text) {
+  let markerEnd = 0;
+  while (markerEnd < 3 && text[markerEnd] === '#') markerEnd += 1;
+  if (markerEnd > 0 && isWhitespace(text[markerEnd])) {
+    let titleStart = markerEnd;
+    while (isWhitespace(text[titleStart])) titleStart += 1;
+    return text.slice(titleStart) || null;
+  }
+
+  const colonIndex = text.indexOf(':');
+  const firstCharacter = text.charCodeAt(0);
+  if (
+    firstCharacter >= 65
+    && firstCharacter <= 90
+    && colonIndex === text.length - 1
+    && colonIndex >= 1
+    && colonIndex <= 41
+  ) {
+    return text.slice(0, colonIndex);
+  }
+  return null;
+}
+
+function getBulletItem(text) {
+  if (text[0] !== '-' && text[0] !== '*') return null;
+
+  let itemStart = 1;
+  if (!isWhitespace(text[itemStart])) return null;
+  while (isWhitespace(text[itemStart])) itemStart += 1;
+  return text.slice(itemStart) || null;
+}
+
+function getNumberedItem(text) {
+  let markerEnd = 0;
+  while (text[markerEnd] >= '0' && text[markerEnd] <= '9') markerEnd += 1;
+  if (markerEnd === 0 || (text[markerEnd] !== '.' && text[markerEnd] !== ')')) return null;
+
+  let itemStart = markerEnd + 1;
+  if (!isWhitespace(text[itemStart])) return null;
+  while (isWhitespace(text[itemStart])) itemStart += 1;
+  return text.slice(itemStart) || null;
+}
 
 function renderInlineContent(text, keyPrefix) {
   const markdownToken = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
@@ -49,9 +92,9 @@ function ChatMessageContent({ content }) {
 
   lines.forEach((line) => {
     const trimmed = line.trim();
-    const heading = trimmed.match(HEADING_PATTERN);
-    const bullet = trimmed.match(BULLET_PATTERN);
-    const numbered = trimmed.match(NUMBERED_PATTERN);
+    const heading = getHeadingTitle(trimmed);
+    const bullet = getBulletItem(trimmed);
+    const numbered = getNumberedItem(trimmed);
     const quote = trimmed.match(/^>\s?(.+)$/);
     const itemType = bullet ? 'unordered' : numbered ? 'ordered' : null;
 
@@ -61,10 +104,9 @@ function ChatMessageContent({ content }) {
     } else if (heading) {
       flushParagraph();
       flushList();
-      const title = heading[1] || heading[2];
       blocks.push(
         <h3 key={`heading-${blocks.length}`}>
-          {renderInlineContent(title, `heading-${blocks.length}`)}
+          {renderInlineContent(heading, `heading-${blocks.length}`)}
         </h3>
       );
     } else if (quote) {
@@ -79,7 +121,7 @@ function ChatMessageContent({ content }) {
       flushParagraph();
       if (listType && listType !== itemType) flushList();
       listType = itemType;
-      list.push((bullet || numbered)[1]);
+      list.push(bullet || numbered);
     } else {
       flushList();
       paragraph.push(trimmed);

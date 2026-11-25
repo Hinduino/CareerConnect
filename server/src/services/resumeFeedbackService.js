@@ -3,6 +3,7 @@ const KILO_REQUEST_TIMEOUT_MS = 90000;
 const MAX_FEEDBACK_ITEMS = 8;
 const { requestKiloCompletion } = require("./kiloClient");
 const parseJsonResponse = require("../utils/parseJsonResponse");
+const stripJsonCodeFence = require("../utils/stripJsonCodeFence");
 
 function parseResumeFeedback(content) {
   if (content && typeof content === "object" && !Array.isArray(content)) {
@@ -18,7 +19,7 @@ function parseResumeFeedback(content) {
     throw new Error("The AI service returned an invalid feedback response.");
   }
 
-  const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)```$/i, "$1").trim();
+  const jsonContent = stripJsonCodeFence(content);
   const feedback = parseJsonResponse(jsonContent, "The AI service returned unreadable feedback.");
 
   const validTextList = (items) => (

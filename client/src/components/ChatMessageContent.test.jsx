@@ -44,4 +44,16 @@ describe('ChatMessageContent', () => {
 
     expect(container.querySelector('.chatbot-response-content').childElementCount).toBe(0);
   });
+
+  it('handles incomplete markers and whitespace after valid list markers', () => {
+    render(
+      <ChatMessageContent
+        content={['#', '-', '1.', '###\tA heading', '-\tA bullet', '2.\tA numbered item'].join('\n')}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: 'A heading' })).toBeInTheDocument();
+    expect(screen.getByText('A bullet').closest('li')).toBeInTheDocument();
+    expect(screen.getByText('A numbered item').closest('li')).toBeInTheDocument();
+  });
 });
