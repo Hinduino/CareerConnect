@@ -18,15 +18,17 @@ const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 const { createNotificationSafe } = require('../queries/notificationQueries');
 
+const OBJECT_ID_HEX_PATTERN = /^[0-9a-fA-F]{24}$/;
+
 function parseValidObjectIdString(value) {
   if (typeof value !== 'string') {
     return null;
   }
   const trimmed = value.trim();
-  if (!trimmed || !mongoose.isValidObjectId(trimmed)) {
+  if (!OBJECT_ID_HEX_PATTERN.test(trimmed) || !mongoose.isValidObjectId(trimmed)) {
     return null;
   }
-  return trimmed;
+  return new mongoose.Types.ObjectId(trimmed).toHexString();
 }
 
 // ==========================================
