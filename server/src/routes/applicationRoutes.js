@@ -18,6 +18,17 @@ const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 const { createNotificationSafe } = require('../queries/notificationQueries');
 
+function parseValidObjectIdString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || !mongoose.isValidObjectId(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
 // ==========================================
@@ -37,7 +48,11 @@ router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) 
 
 router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = parseValidObjectIdString(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: 'Invalid application ID' });
+    }
+
     const updated = await declineJobOffer(id, req.user.id);
     const job = await JobPosting.findById(updated.job);
     if (job && job.postedBy) {
@@ -70,11 +85,12 @@ router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
 router.get('/status/:jobId', requireAuth, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.jobId)) {
+    const jobId = parseValidObjectIdString(req.params.jobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
-    const status = await getApplicationStatus(req.user.id, req.params.jobId);
+    const status = await getApplicationStatus(req.user.id, jobId);
     res.status(200).json(status);
   } catch (error) {
     console.error(error);
@@ -84,14 +100,21 @@ router.get('/status/:jobId', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { jobId, resumeId } = req.body;
+    const rawJobId = typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '';
+    const rawResumeId = typeof req.body?.resumeId === 'string' ? req.body.resumeId.trim() : '';
 
-    if (!jobId || !resumeId) {
+    if (!rawJobId || !rawResumeId) {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
     }
 
-    if (!mongoose.isValidObjectId(jobId)) {
+    const jobId = parseValidObjectIdString(rawJobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
+    }
+
+    const resumeId = parseValidObjectIdString(rawResumeId);
+    if (!resumeId) {
+      return res.status(400).json({ error: 'Selected resume could not be found.' });
     }
 
     const job = await JobPosting.findById(jobId);
@@ -145,16 +168,17 @@ router.post('/', requireAuth, async (req, res) => {
 
 router.delete('/:applicationId', requireAuth, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
     const existingApplication = await Application.findOne({
-      _id: req.params.applicationId,
+      _id: applicationId,
       applicant: req.user.id,
     });
 
-    await cancelApplication(req.user.id, req.params.applicationId);
+    await cancelApplication(req.user.id, applicationId);
 
     if (existingApplication) {
       const job = await JobPosting.findById(existingApplication.job).select('title company postedBy');
@@ -186,11 +210,12 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
 
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.jobId)) {
+    const jobId = parseValidObjectIdString(req.params.jobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
-    const job = await JobPosting.findById(req.params.jobId);
+    const job = await JobPosting.findById(jobId);
     if (!job) return res.status(404).json({ error: 'Job not found' });
     if (job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({ error: 'You can only view applications for your own job postings' });
@@ -208,11 +233,12 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
 
 router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findById(applicationId);
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }
@@ -253,11 +279,12 @@ router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), a
 
 router.get('/:applicationId/resume', requireAuth, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const application = await Application.findById(req.params.applicationId).select('+resume.data');
+    const application = await Application.findById(applicationId).select('+resume.data');
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }
@@ -288,7 +315,8 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
 
 router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
@@ -296,7 +324,7 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
 
     const application = await updateApplicationStatus(
       req.user.id,
-      req.params.applicationId,
+      applicationId,
       status,
       interviewDate
     );
