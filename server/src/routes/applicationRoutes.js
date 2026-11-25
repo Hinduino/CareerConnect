@@ -176,13 +176,12 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
     }
 
     const existingApplication = await Application.findOne({
-      _id: applicationId,
       applicant: req.user.id,
     });
 
     await cancelApplication(req.user.id, applicationId);
 
-    if (existingApplication) {
+    if (existingApplication && String(existingApplication._id) === applicationId) {
       const job = await JobPosting.findById(existingApplication.job).select('title company postedBy');
       if (job && job.postedBy) {
         await createNotificationSafe({
