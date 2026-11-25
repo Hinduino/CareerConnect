@@ -16,7 +16,7 @@ const {
 } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
-const { createNotification } = require('../queries/notificationQueries');
+const { createNotificationSafe } = require('../queries/notificationQueries');
 
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
@@ -41,7 +41,7 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
     const updated = await declineJobOffer(id, req.user.id);
     const job = await JobPosting.findById(updated.job);
     if (job && job.postedBy) {
-      await createNotification({
+      await createNotificationSafe({
         recipient: job.postedBy,
         type: 'APPLICATION_STATUS',
         title: 'Job Offer Declined',
@@ -107,9 +107,8 @@ router.post('/', requireAuth, async (req, res) => {
 
     const application = await createApplication(req.user.id, jobId, resumeId);
 
-    // SCRUM-293: Notify the recruiter who posted the job about the new application
     if (job.postedBy) {
-      await createNotification({
+      await createNotificationSafe({
         recipient: job.postedBy,
         type: 'APPLICATION_SUBMITTED',
         title: 'New Application Received',
@@ -150,7 +149,27 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
+    const existingApplication = await Application.findOne({
+      _id: req.params.applicationId,
+      applicant: req.user.id,
+    });
+
     await cancelApplication(req.user.id, req.params.applicationId);
+
+    if (existingApplication) {
+      const job = await JobPosting.findById(existingApplication.job).select('title company postedBy');
+      if (job && job.postedBy) {
+        await createNotificationSafe({
+          recipient: job.postedBy,
+          type: 'APPLICATION_WITHDRAWN',
+          title: 'Application Withdrawn',
+          message: `A candidate withdrew their application for "${job.title}" at ${job.company}.`,
+          relatedJob: job._id,
+          relatedApplication: existingApplication._id,
+        });
+      }
+    }
+
     res.status(200).json({ message: 'Application cancelled successfully.' });
   } catch (error) {
     if (error.message === 'Application not found.') {
@@ -187,9 +206,6 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
   }
 });
 
-// Lets a recruiter review an applicant's full professional profile directly
-// from one of their applications. Access is only granted through applications
-// to the recruiter's own job postings.
 router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.applicationId)) {
@@ -211,7 +227,6 @@ router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), a
       return res.status(404).json({ error: 'Applicant not found' });
     }
 
-    // Resume metadata only; the bytes stay behind the dedicated resume route.
     const resume = application.resume && application.resume.originalName
       ? {
           originalName: application.resume.originalName,
@@ -277,22 +292,39 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const { status } = req.body;
+    const { status, interviewDate } = req.body;
 
     const application = await updateApplicationStatus(
       req.user.id,
       req.params.applicationId,
-      status
+      status,
+      interviewDate
     );
 
-    // SCRUM-293: Notify the applicant that their application status changed
     const job = await JobPosting.findById(application.job).select('title company');
     const jobLabel = job ? `"${job.title}" at ${job.company}` : 'your job application';
-    await createNotification({
+    const isInterview = application.status === 'Interview';
+    const formattedInterviewDate = application.interviewDate
+      ? new Date(application.interviewDate).toLocaleString('en-US', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+      : null;
+
+    let interviewMessage = `You have been invited to an interview for ${jobLabel}!`;
+    if (formattedInterviewDate) {
+      interviewMessage = `You have been invited to an interview for ${jobLabel} scheduled for ${formattedInterviewDate}!`;
+    }
+
+    await createNotificationSafe({
       recipient: application.applicant,
-      type: 'APPLICATION_STATUS',
-      title: `Application Status Updated: ${application.status}`,
-      message: `Your application for ${jobLabel} is now "${application.status}".`,
+      type: isInterview ? 'INTERVIEW_INVITATION' : 'APPLICATION_STATUS',
+      title: isInterview
+        ? 'Interview Invitation'
+        : `Application Status Updated: ${application.status}`,
+      message: isInterview
+        ? interviewMessage
+        : `Your application for ${jobLabel} is now "${application.status}".`,
       relatedJob: application.job,
       relatedApplication: application._id,
     });
@@ -302,11 +334,16 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
       application: {
         _id: application._id,
         status: application.status,
+        interviewDate: application.interviewDate || null,
         updatedAt: application.updatedAt,
       },
     });
   } catch (error) {
-    if (error.message === 'Invalid application status.') {
+    if (
+      error.message === 'Invalid application status.' ||
+      error.message === 'Invalid interview date.' ||
+      error.message.startsWith('Cannot move application back')
+    ) {
       return res.status(400).json({ error: error.message });
     }
 

@@ -85,12 +85,12 @@ async function getApplicationStatus(userId, jobId) {
 
 async function getMyApplications(userId) {
   return Application.find({ applicant: userId })
-    .select("_id job status createdAt updatedAt")
+    .select("_id job status interviewDate createdAt updatedAt")
     .populate("job", "title company location category")
     .sort({ createdAt: -1 });
 }
 
-async function updateApplicationStatus(recruiterId, applicationId, status) {
+async function updateApplicationStatus(recruiterId, applicationId, status, interviewDate = null) {
   if (!RECRUITER_EDITABLE_STATUSES.includes(status)) {
     throw new Error("Invalid application status.");
   }
@@ -106,6 +106,20 @@ async function updateApplicationStatus(recruiterId, applicationId, status) {
 
   if (!job || job.postedBy.toString() !== recruiterId) {
     throw new Error("Not authorized to update this application.");
+  }
+
+  if (status === APPLICATION_STATUSES.INTERVIEW) {
+    if (interviewDate) {
+      const parsedDate = new Date(interviewDate);
+      if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error("Invalid interview date.");
+      }
+      application.interviewDate = parsedDate;
+    } else if (!application.interviewDate) {
+      application.interviewDate = null;
+    }
+  } else {
+    application.interviewDate = null;
   }
 
   application.status = status;

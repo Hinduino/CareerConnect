@@ -11,7 +11,6 @@ import { updateApplicationStatus, fetchApplicationResumeBlobUrl } from '../api/a
 
 const STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
 
-// REFACTORED (SCRUM-383): Extracted repeated form styles and initial form state to reduce duplication
 const INITIAL_FORM_DATA = {
   title: '',
   company: '',
@@ -19,6 +18,7 @@ const INITIAL_FORM_DATA = {
   category: 'Software Engineering',
   description: '',
   requirements: '',
+  dueDate: '',
 };
 
 const LABEL_STYLE = {
@@ -43,7 +43,6 @@ function RecruiterPostings() {
   const [postings, setPostings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  // REFACTORED (SCRUM-383): Replaced blocking window.alert() calls with non-blocking inline feedback banner
   const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -57,9 +56,12 @@ function RecruiterPostings() {
   const [applicants, setApplicants] = useState([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
-  // REFACTORED (SCRUM-383): Added dateFilter state so recruiters can filter applicants by date as well as status
   const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState('desc');
+
+  // Interview scheduling modal state
+  const [interviewTarget, setInterviewTarget] = useState(null);
+  const [interviewDateTime, setInterviewDateTime] = useState('');
 
   const refreshPostings = () => setReloadKey((prev) => prev + 1);
 
@@ -67,7 +69,6 @@ function RecruiterPostings() {
     setFeedback({ type, message });
   };
 
-  // Fetch postings on load
   useEffect(() => {
     let isSubscribed = true;
 
@@ -112,6 +113,7 @@ function RecruiterPostings() {
       category: job.category || '',
       description: job.description || '',
       requirements: job.requirements || '',
+      dueDate: job.dueDate ? new Date(job.dueDate).toISOString().slice(0, 10) : '',
     });
     setFeedback(null);
     setModalOpen(true);
@@ -130,7 +132,6 @@ function RecruiterPostings() {
       setModalOpen(false);
       refreshPostings();
     } catch (err) {
-      // REMOVED: alert(err.message || 'Error saving job posting.')
       showFeedback('error', err.message || 'Error saving job posting.');
     }
   };
@@ -145,7 +146,6 @@ function RecruiterPostings() {
       }
       showFeedback('success', result?.message || 'Posting archive status updated.');
     } catch (err) {
-      // REMOVED: alert(err.message || 'Error archiving posting.')
       showFeedback('error', err.message || 'Error archiving posting.');
     }
   };
@@ -159,24 +159,42 @@ function RecruiterPostings() {
       const data = await fetchApplicantsForJob(authToken, job._id);
       setApplicants(data || []);
     } catch (err) {
-      // REMOVED: alert(err.message || 'Error fetching applicants.')
       showFeedback('error', err.message || 'Error fetching applicants.');
     } finally {
       setLoadingApplicants(false);
     }
   };
 
-  const handleUpdateStatus = async (applicationId, newStatus) => {
+  const submitStatusUpdate = async (applicationId, newStatus, interviewDate = null) => {
     try {
-      await updateApplicationStatus(authToken, applicationId, newStatus);
+      await updateApplicationStatus(authToken, applicationId, newStatus, interviewDate);
       const data = await fetchApplicantsForJob(authToken, selectedJob._id);
       setApplicants(data || []);
       refreshPostings();
       showFeedback('success', `Applicant status updated to "${newStatus}".`);
     } catch (err) {
-      // REMOVED: alert(err.message || 'Error updating status.')
       showFeedback('error', err.message || 'Error updating status.');
     }
+  };
+
+  const handleStatusDropdownChange = async (app, newStatus) => {
+    if (newStatus === 'Interview') {
+      setInterviewTarget(app);
+      setInterviewDateTime(
+        app.interviewDate ? new Date(app.interviewDate).toISOString().slice(0, 16) : ''
+      );
+      return;
+    }
+    await submitStatusUpdate(app._id, newStatus, null);
+  };
+
+  const handleConfirmInterview = async (e) => {
+    e.preventDefault();
+    if (!interviewTarget) return;
+    const isoDate = interviewDateTime ? new Date(interviewDateTime).toISOString() : null;
+    await submitStatusUpdate(interviewTarget._id, 'Interview', isoDate);
+    setInterviewTarget(null);
+    setInterviewDateTime('');
   };
 
   const handleDownloadResume = async (applicationId) => {
@@ -188,15 +206,12 @@ function RecruiterPostings() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      // REFACTORED (SCRUM-383): Revoke object URL after download to prevent browser memory leaks
       URL.revokeObjectURL(url);
     } catch (err) {
-      // REMOVED: alert(err.message || 'Error downloading resume.')
       showFeedback('error', err.message || 'Error downloading resume.');
     }
   };
 
-  // REFACTORED (SCRUM-383): Added date filtering (YYYY-MM-DD match) alongside status filter and date sort
   const filteredApplicants = applicants
     .filter((app) => (statusFilter === 'All' ? true : app.status === statusFilter))
     .filter((app) => {
@@ -236,7 +251,6 @@ function RecruiterPostings() {
         </button>
       </div>
 
-      {/* Inline Feedback Banner (replaces window.alert) */}
       {feedback && (
         <div
           role={feedback.type === 'error' ? 'alert' : 'status'}
@@ -280,6 +294,7 @@ function RecruiterPostings() {
               <tr>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Job Title</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Location &amp; Category</th>
+                <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Due Date</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Applications</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569' }}>Status</th>
                 <th style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#475569', textAlign: 'right' }}>Actions</th>
@@ -301,6 +316,9 @@ function RecruiterPostings() {
                   </td>
                   <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '0.875rem' }}>
                     {job.location} &bull; {job.category}
+                  </td>
+                  <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '0.85rem' }}>
+                    {job.dueDate ? new Date(job.dueDate).toLocaleDateString() : 'None'}
                   </td>
                   <td style={{ padding: '14px 16px', fontWeight: '600', color: '#4f46e5' }}>
                     {job.applicantCount || 0} received
@@ -369,7 +387,6 @@ function RecruiterPostings() {
                 Review candidates, change statuses, and download resumes.
               </p>
             </div>
-            {/* Filter by Status, Filter by Date, and Sort controls */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <select
                 aria-label="Filter applicants by status"
@@ -435,7 +452,7 @@ function RecruiterPostings() {
                       <select
                         aria-label={`Status for ${app.applicant?.name || 'Applicant'}`}
                         value={app.status}
-                        onChange={(e) => handleUpdateStatus(app._id, e.target.value)}
+                        onChange={(e) => handleStatusDropdownChange(app, e.target.value)}
                         style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                       >
                         {STATUS_OPTIONS.map((st) => (
@@ -445,6 +462,11 @@ function RecruiterPostings() {
                           <option value="Offer Declined">Offer Declined</option>
                         )}
                       </select>
+                      {app.status === 'Interview' && app.interviewDate && (
+                        <div style={{ fontSize: '0.75rem', color: '#7c3aed', marginTop: '4px' }}>
+                          Scheduled: {new Date(app.interviewDate).toLocaleString()}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       <button
@@ -467,6 +489,71 @@ function RecruiterPostings() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {/* Interview Scheduling Modal */}
+      {interviewTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <form
+            onSubmit={handleConfirmInterview}
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              maxWidth: '420px',
+              width: '90%',
+              padding: '24px',
+            }}
+          >
+            <h3 style={{ margin: '0 0 8px 0' }}>Schedule Interview</h3>
+            <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.875rem' }}>
+              Select the interview date and time for{' '}
+              <strong>{interviewTarget.applicant?.name || 'this candidate'}</strong>.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="interview-datetime" style={LABEL_STYLE}>
+                Interview Date &amp; Time *
+              </label>
+              <input
+                id="interview-datetime"
+                type="datetime-local"
+                required
+                value={interviewDateTime}
+                onChange={(e) => setInterviewDateTime(e.target.value)}
+                style={INPUT_STYLE}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setInterviewTarget(null);
+                  setInterviewDateTime('');
+                }}
+                style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Send Interview Invite
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -538,18 +625,32 @@ function RecruiterPostings() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <label htmlFor="posting-category" style={LABEL_STYLE}>
-                Category *
-              </label>
-              <input
-                id="posting-category"
-                type="text"
-                required
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                style={INPUT_STYLE}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              <div>
+                <label htmlFor="posting-category" style={LABEL_STYLE}>
+                  Category *
+                </label>
+                <input
+                  id="posting-category"
+                  type="text"
+                  required
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  style={INPUT_STYLE}
+                />
+              </div>
+              <div>
+                <label htmlFor="posting-due-date" style={LABEL_STYLE}>
+                  Application Due Date (Optional)
+                </label>
+                <input
+                  id="posting-due-date"
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  style={INPUT_STYLE}
+                />
+              </div>
             </div>
 
             <div style={{ marginBottom: '12px' }}>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+// UPDATED (SCRUM-372): Added optional dueDate field to shared posting form state
 const EMPTY_JOB = {
   title: '',
   company: '',
@@ -7,12 +8,23 @@ const EMPTY_JOB = {
   category: '',
   description: '',
   requirements: '',
+  dueDate: '',
 };
+
+function formatDateInput(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+}
 
 // Shared form used by the recruiter dashboard to both create a brand new
 // posting and modify an existing one (`initialValues` is set in that case).
 function JobPostingForm({ initialValues, onSubmit, onCancel, submitLabel }) {
-  const [values, setValues] = useState({ ...EMPTY_JOB, ...initialValues });
+  const [values, setValues] = useState({
+    ...EMPTY_JOB,
+    ...initialValues,
+    dueDate: formatDateInput(initialValues?.dueDate),
+  });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -86,6 +98,17 @@ function JobPostingForm({ initialValues, onSubmit, onCancel, submitLabel }) {
           <option value="Design">Design</option>
           <option value="Marketing">Marketing</option>
         </select>
+      </div>
+
+      {/* ADDED (SCRUM-372): Optional application due date field for deadline reminders */}
+      <div className="form-group">
+        <label htmlFor="job-due-date">Application Due Date (Optional)</label>
+        <input
+          id="job-due-date"
+          type="date"
+          value={values.dueDate}
+          onChange={handleChange('dueDate')}
+        />
       </div>
 
       <div className="form-group">

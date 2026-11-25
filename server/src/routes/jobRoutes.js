@@ -13,6 +13,7 @@ const {
   getRecruiterPostingsWithCounts,
   findOwnedJobPosting,
 } = require('../queries/jobQueries');
+const { sendDeadlineRemindersForJob } = require('../services/applicationReminderService');
 
 const REQUIRED_FIELDS = ['title', 'company', 'location', 'category', 'description', 'requirements'];
 
@@ -120,7 +121,6 @@ router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recrui
   }
 });
 
-// PATCH /api/jobs/:id/archive - Toggle archive status for a recruiter's job posting
 router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
   try {
     const job = await findOwnedJobPosting(req.params.id, req.user.id, 'archive');
@@ -173,7 +173,6 @@ router.get('/:id', validateJobId, async (req, res) => {
   }
 });
 
-// POST /api/jobs - Recruiters create a new job posting, tied to their account
 router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
     const { error, data } = parseAndValidateJobPayload(req.body);
@@ -188,6 +187,10 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
       isArchived: false,
     });
 
+    if (job.dueDate) {
+      await sendDeadlineRemindersForJob(job);
+    }
+
     res.status(201).json(job);
   } catch (error) {
     console.error(error);
@@ -195,7 +198,6 @@ router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
   }
 });
 
-// PUT /api/jobs/:id - Recruiters modify a posting they own
 router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
   try {
     const job = await findOwnedJobPosting(req.params.id, req.user.id, 'modify');
@@ -211,6 +213,10 @@ router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (
     }
     await job.save();
 
+    if (job.dueDate && !job.isArchived) {
+      await sendDeadlineRemindersForJob(job);
+    }
+
     res.status(200).json(job);
   } catch (error) {
     if (error.statusCode) {
@@ -221,7 +227,6 @@ router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (
   }
 });
 
-// DELETE /api/jobs/:id - Recruiters delete their own job postings
 router.delete('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
   try {
     const job = await findOwnedJobPosting(req.params.id, req.user.id, 'delete');

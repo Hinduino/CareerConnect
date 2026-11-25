@@ -174,7 +174,7 @@ describe("SCRUM-106 application queries", () => {
 
       expect(result).toBe(rows);
       expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
-      expect(query.select).toHaveBeenCalledWith("_id job status createdAt updatedAt");
+      expect(query.select).toHaveBeenCalledWith("_id job status interviewDate createdAt updatedAt");
       expect(query.populate).toHaveBeenCalledWith("job", "title company location category");
       expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
     });

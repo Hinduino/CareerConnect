@@ -8,9 +8,18 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // REFACTORED (SCRUM-371): Added INTERVIEW_INVITATION and APPLICATION_WITHDRAWN
+    // to support dedicated interview notifications and candidate withdrawal alerts.
     type: {
       type: String,
-      enum: ["APPLICATION_SUBMITTED", "APPLICATION_STATUS", "REMINDER", "SYSTEM"],
+      enum: [
+        "APPLICATION_SUBMITTED",
+        "APPLICATION_STATUS",
+        "INTERVIEW_INVITATION",
+        "APPLICATION_WITHDRAWN",
+        "REMINDER",
+        "SYSTEM",
+      ],
       default: "SYSTEM",
     },
     title: {

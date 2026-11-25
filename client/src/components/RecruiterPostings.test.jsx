@@ -178,6 +178,7 @@ describe('RecruiterPostings', () => {
           category: 'Engineering',
           description: 'Test the app.',
           requirements: 'Attention to detail',
+          dueDate: '',
         })
       );
       expect(await screen.findByRole('status')).toHaveTextContent('Job posting created successfully.');
@@ -295,7 +296,7 @@ describe('RecruiterPostings', () => {
       const omarStatus = within(screen.getByText('Omar Lee').closest('tr')).getByRole('combobox');
       fireEvent.change(omarStatus, { target: { value: 'Under Review' } });
 
-      await waitFor(() => expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review'));
+      await waitFor(() => expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review', null));
       await waitFor(() => expect(omarStatus).toHaveValue('Under Review'));
       expect(await screen.findByRole('status')).toHaveTextContent('Applicant status updated to "Under Review".');
       expect(fetchRecruiterPostings).toHaveBeenCalledTimes(2);
