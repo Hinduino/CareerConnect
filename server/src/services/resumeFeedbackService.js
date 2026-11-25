@@ -2,6 +2,7 @@ const KILO_MODEL = "kilo-auto/free";
 const KILO_REQUEST_TIMEOUT_MS = 90000;
 const MAX_FEEDBACK_ITEMS = 8;
 const { requestKiloCompletion } = require("./kiloClient");
+const parseJsonResponse = require("../utils/parseJsonResponse");
 
 function parseResumeFeedback(content) {
   if (content && typeof content === "object" && !Array.isArray(content)) {
@@ -18,48 +19,7 @@ function parseResumeFeedback(content) {
   }
 
   const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1").trim();
-  let feedback;
-  try {
-    feedback = JSON.parse(jsonContent);
-  } catch {
-    const objectStart = jsonContent.indexOf("{");
-    let objectEnd = -1;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-
-    for (let index = objectStart; objectStart >= 0 && index < jsonContent.length; index += 1) {
-      const character = jsonContent[index];
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-        } else if (character === "\\") {
-          escaped = true;
-        } else if (character === '"') {
-          inString = false;
-        }
-      } else if (character === '"') {
-        inString = true;
-      } else if (character === "{") {
-        depth += 1;
-      } else if (character === "}") {
-        depth -= 1;
-        if (depth === 0) {
-          objectEnd = index + 1;
-          break;
-        }
-      }
-    }
-
-    try {
-      if (objectStart < 0 || objectEnd < 0) {
-        throw new Error();
-      }
-      feedback = JSON.parse(jsonContent.slice(objectStart, objectEnd));
-    } catch {
-      throw new Error("The AI service returned unreadable feedback.");
-    }
-  }
+  const feedback = parseJsonResponse(jsonContent, "The AI service returned unreadable feedback.");
 
   const validTextList = (items) => (
     Array.isArray(items)

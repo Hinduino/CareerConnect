@@ -2,6 +2,7 @@ const MAX_RECOMMENDATIONS = 3;
 const REQUEST_TIMEOUT_MS = 90000;
 const KILO_MODEL = "kilo-auto/free";
 const { requestKiloCompletion } = require("./kiloClient");
+const parseJsonResponse = require("../utils/parseJsonResponse");
 
 function getRecommendationServiceError(status) {
   if (status === 401 || status === 403) {
@@ -43,47 +44,7 @@ function parseRecommendations(content, candidateJobs) {
 
   if (typeof content === "string") {
     const jsonContent = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1").trim();
-    try {
-      result = JSON.parse(jsonContent);
-    } catch {
-      const objectStart = jsonContent.indexOf("{");
-      let objectEnd = -1;
-      let depth = 0;
-      let inString = false;
-      let escaped = false;
-
-      for (let index = objectStart; objectStart >= 0 && index < jsonContent.length; index += 1) {
-        const character = jsonContent[index];
-        if (inString) {
-          if (escaped) {
-            escaped = false;
-          } else if (character === "\\") {
-            escaped = true;
-          } else if (character === '"') {
-            inString = false;
-          }
-        } else if (character === '"') {
-          inString = true;
-        } else if (character === "{") {
-          depth += 1;
-        } else if (character === "}") {
-          depth -= 1;
-          if (depth === 0) {
-            objectEnd = index + 1;
-            break;
-          }
-        }
-      }
-
-      try {
-        if (objectStart < 0 || objectEnd < 0) {
-          throw new Error();
-        }
-        result = JSON.parse(jsonContent.slice(objectStart, objectEnd));
-      } catch {
-        throw new Error("The recommendation service returned unreadable results.");
-      }
-    }
+    result = parseJsonResponse(jsonContent, "The recommendation service returned unreadable results.");
   } else if (!content || typeof content !== "object") {
     throw new Error("The recommendation service returned an invalid response.");
   }
