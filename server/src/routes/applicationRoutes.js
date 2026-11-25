@@ -168,6 +168,7 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+
 router.delete('/:applicationId', requireAuth, async (req, res) => {
   try {
     const applicationId = parseValidObjectIdString(req.params.applicationId);
@@ -176,12 +177,13 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
     }
 
     const existingApplication = await Application.findOne({
-      applicant: req.user.id,
+      _id: String(applicationId),
+      applicant: String(req.user.id),
     });
 
     await cancelApplication(req.user.id, applicationId);
 
-    if (existingApplication && String(existingApplication._id) === applicationId) {
+    if (existingApplication) {
       const job = await JobPosting.findById(existingApplication.job).select('title company postedBy');
       if (job && job.postedBy) {
         await createNotificationSafe({
@@ -204,6 +206,7 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Server error cancelling application.' });
   }
 });
+
 
 // ==========================================
 // RECRUITER & RESUME ROUTES
