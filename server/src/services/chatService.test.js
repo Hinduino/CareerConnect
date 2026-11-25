@@ -2,6 +2,7 @@ jest.mock("../models/User", () => ({ findById: jest.fn() }));
 jest.mock("../models/JobPosting", () => ({ find: jest.fn() }));
 jest.mock("../models/Application", () => ({ find: jest.fn() }));
 
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const JobPosting = require("../models/JobPosting");
 const Application = require("../models/Application");
@@ -82,7 +83,8 @@ describe("chatService", () => {
         { status: "Interview", createdAt: "2026-02-02", job: null }
       ]));
 
-      const context = await loadCareerConnectContext("user-1");
+      const userId = "507f1f77bcf86cd799439011";
+      const context = await loadCareerConnectContext(userId);
 
       expect(context.profile).toEqual({ location: "Toronto", bio: "B".repeat(1000) });
       expect(context.applications).toEqual([
@@ -93,8 +95,20 @@ describe("chatService", () => {
         },
         { status: "Interview", appliedAt: "2026-02-02", job: null }
       ]);
-      expect(User.findById).toHaveBeenCalledWith("user-1");
-      expect(Application.find).toHaveBeenCalledWith({ applicant: "user-1" });
+      const expectedUserId = new mongoose.Types.ObjectId(userId);
+      expect(User.findById).toHaveBeenCalledWith(expectedUserId);
+      expect(Application.find).toHaveBeenCalledWith({ applicant: expectedUserId });
+    });
+
+    it.each([
+      ["operator object", { $ne: null }],
+      ["malformed ID", "not-an-object-id"]
+    ])("rejects %s without querying private data", async (_label, userId) => {
+      await expect(loadCareerConnectContext(userId)).rejects.toThrow("Invalid authenticated user ID.");
+
+      expect(JobPosting.find).not.toHaveBeenCalled();
+      expect(User.findById).not.toHaveBeenCalled();
+      expect(Application.find).not.toHaveBeenCalled();
     });
 
     it("propagates database failures", async () => {

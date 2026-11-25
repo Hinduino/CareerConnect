@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const JobPosting = require("../models/JobPosting");
 const Application = require("../models/Application");
@@ -30,17 +31,25 @@ function getAssistantReply(message) {
 }
 
 async function loadCareerConnectContext(userId) {
+  let authenticatedUserId = null;
+  if (userId !== undefined && userId !== null) {
+    if (typeof userId !== "string" || !mongoose.isValidObjectId(userId)) {
+      throw new Error("Invalid authenticated user ID.");
+    }
+    authenticatedUserId = new mongoose.Types.ObjectId(userId);
+  }
+
   const [jobs, profile, applications] = await Promise.all([
     JobPosting.find({ isArchived: { $ne: true } })
       .select("title company location category description requirements createdAt")
       .sort({ createdAt: -1 })
       .limit(MAX_JOBS)
       .lean(),
-    userId
-      ? User.findById(userId).select("location bio").lean()
+    authenticatedUserId
+      ? User.findById(authenticatedUserId).select("location bio").lean()
       : Promise.resolve(null),
-    userId
-      ? Application.find({ applicant: userId })
+    authenticatedUserId
+      ? Application.find({ applicant: authenticatedUserId })
         .select("status createdAt job")
         .populate("job", "title company location category")
         .sort({ createdAt: -1 })
