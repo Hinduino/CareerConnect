@@ -53,6 +53,13 @@ export function fetchMyApplications(token) {
   });
 }
 
+export function fetchApplicationHistory(token) {
+    return requestJson("/applications/history", {
+        token,
+        fallbackError: "Failed to fetch application history"
+    });
+}
+
 // Update an application status (recruiter only).
 export function updateApplicationStatus(token, applicationId, status) {
   return requestJson(`/applications/${applicationId}/status`, {

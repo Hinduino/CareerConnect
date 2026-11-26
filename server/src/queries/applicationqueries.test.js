@@ -1,5 +1,6 @@
 jest.mock("../models/Application", () => ({
   findOne: jest.fn(),
+  findOneAndDelete: jest.fn(),
   create: jest.fn(),
   deleteOne: jest.fn(),
 }));
@@ -77,22 +78,31 @@ describe("applicationqueries", () => {
 
   describe("cancelApplication", () => {
     it("deletes an application owned by the requesting user", async () => {
-      Application.findOne.mockResolvedValue({ _id: applicationId });
-      Application.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      Application.findOneAndDelete.mockResolvedValue({
+        _id: applicationId
+      });
 
-      await expect(cancelApplication(userId, applicationId)).resolves.toEqual({ _id: applicationId });
-      expect(Application.findOne).toHaveBeenCalledWith({ _id: applicationId, applicant: userId });
-      expect(Application.deleteOne).toHaveBeenCalledWith({ _id: applicationId });
+      await expect(cancelApplication(userId, applicationId))
+        .resolves.toEqual({ _id: applicationId });
+
+      expect(Application.findOneAndDelete).toHaveBeenCalledWith({
+        _id: applicationId,
+        applicant: userId
+      });
     });
 
     it("rejects when the application doesn't exist or isn't owned by the user", async () => {
-      Application.findOne.mockResolvedValue(null);
+      Application.findOneAndDelete.mockResolvedValue(null);
 
-      await expect(cancelApplication(userId, applicationId)).rejects.toThrow("Application not found.");
-      expect(Application.deleteOne).not.toHaveBeenCalled();
+      await expect(cancelApplication(userId, applicationId))
+        .rejects.toThrow("Application not found.");
+
+      expect(Application.findOneAndDelete).toHaveBeenCalledWith({
+        _id: applicationId,
+        applicant: userId
+      });
     });
   });
-
   describe("getApplicationStatus", () => {
     it("reports an existing application", async () => {
       const select = jest.fn().mockResolvedValue({ _id: applicationId, status: APPLICATION_STATUSES.APPLIED });

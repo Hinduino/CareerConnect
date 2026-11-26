@@ -1,4 +1,5 @@
 const Application = require("../models/Application");
+const JobPosting = require("../models/JobPosting");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const { findResumeByIdForUser } = require("./resumeQueries");
 
@@ -41,12 +42,15 @@ async function createApplication(userId, jobId, resumeId) {
 }
 
 async function cancelApplication(userId, applicationId) {
-  const application = await Application.findOne({ _id: applicationId, applicant: userId });
+  const application = await Application.findOneAndDelete({
+    _id: applicationId,
+    applicant: userId
+  });
+
   if (!application) {
     throw new Error("Application not found.");
   }
 
-  await Application.deleteOne({ _id: applicationId });
   return application;
 }
 
@@ -101,7 +105,6 @@ async function updateApplicationStatus(recruiterId, applicationId, status) {
     throw new Error("Application not found.");
   }
 
-  const JobPosting = require("../models/JobPosting");
   const job = await JobPosting.findById(application.job);
 
   if (!job || job.postedBy.toString() !== recruiterId) {

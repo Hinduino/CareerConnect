@@ -2,6 +2,7 @@ import {
   cancelApplication,
   declineJobOffer,
   fetchApplicationApplicant,
+  fetchApplicationHistory,
   fetchApplicationResumeBlobUrl,
   fetchApplicationStatus,
   fetchMyApplications,
@@ -136,4 +137,104 @@ describe('applicationApi', () => {
       { headers: { Authorization: 'Bearer token' } },
     );
   });
+  it('previews an application resume without download options', async () => {
+  global.fetch.mockResolvedValue(response({}));
+
+  await expect(
+    fetchApplicationResumeBlobUrl('token', 'app-1')
+  ).resolves.toBe('blob:resume');
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:3000/api/applications/app-1/resume',
+    { headers: { Authorization: 'Bearer token' } }
+  );
+});
+it('previews a resume when download is disabled', async () => {
+  global.fetch.mockResolvedValue(response({}));
+
+  await expect(
+    fetchApplicationResumeBlobUrl('token', 'app-1', {
+      download: false
+    })
+  ).resolves.toBe('blob:resume');
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:3000/api/applications/app-1/resume',
+    { headers: { Authorization: 'Bearer token' } }
+  );
+});
+it('handles errors when retrieving an application resume', async () => {
+  global.fetch.mockResolvedValue(
+    response({ error: 'Application not found' }, { ok: false })
+  );
+
+  await expect(
+    fetchApplicationResumeBlobUrl('token', 'app-1')
+  ).rejects.toThrow('Application not found');
+
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+});
+it('uses a fallback message when submission fails without error details', async () => {
+  global.fetch.mockResolvedValue(
+    response({}, { ok: false })
+  );
+
+  await expect(
+    submitApplication('token', 'job-1', 'resume-1')
+  ).rejects.toThrow('Failed to submit application.');
+});
+it('handles a network failure when submitting an application', async () => {
+  global.fetch.mockRejectedValueOnce(
+    new Error('Network error')
+  );
+
+  await expect(
+    submitApplication('token', 'job-1', 'resume-1')
+  ).rejects.toThrow('Network error');
+});
+it('fetches application history including job descriptions', async () => {
+  const payload = [
+    {
+      _id: 'app-1',
+      status: 'Applied',
+      job: {
+        title: 'Data Analyst',
+        company: 'Acme Corp',
+        description: 'Analyze business data.'
+      }
+    }
+  ];
+
+  global.fetch.mockResolvedValue(response(payload));
+
+  await expect(
+    fetchApplicationHistory('token')
+  ).resolves.toEqual(payload);
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:3000/api/applications/history',
+    { headers: { Authorization: 'Bearer token' } }
+  );
+});
+it('surfaces server errors when fetching application history', async () => {
+  global.fetch.mockResolvedValue(
+    response(
+      { error: 'Server error fetching application history.' },
+      { ok: false }
+    )
+  );
+
+  await expect(
+    fetchApplicationHistory('token')
+  ).rejects.toThrow('Server error fetching application history.');
+});
+it('uses a fallback error when application history retrieval fails', async () => {
+  global.fetch.mockResolvedValue(
+    response({}, { ok: false })
+  );
+
+  await expect(
+    fetchApplicationHistory('token')
+  ).rejects.toThrow('Failed to fetch application history');
+});
 });
