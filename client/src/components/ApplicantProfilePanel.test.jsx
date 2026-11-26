@@ -137,3 +137,136 @@ describe('ApplicantProfilePanel', () => {
     expect(await screen.findByText('Failed to fetch resume file')).toBeInTheDocument();
   });
 });
+
+describe('ApplicantProfilePanel edge cases', () => {
+  const { act } = require('@testing-library/react');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuth.mockReturnValue({ token: 'token' });
+    fetchApplicationApplicant.mockResolvedValue(applicantProfile);
+  });
+
+  it('formats small resume sizes in bytes', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      resume: { originalName: 'tiny.pdf', size: 512 },
+    });
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    expect(await screen.findByText('tiny.pdf (512 B)')).toBeInTheDocument();
+  });
+
+  it('formats large resume sizes in megabytes', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      resume: { originalName: 'big.pdf', size: 3 * 1024 * 1024 },
+    });
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    expect(await screen.findByText('big.pdf (3.0 MB)')).toBeInTheDocument();
+  });
+
+  it('omits the size suffix when the resume size is unavailable', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      resume: { originalName: 'unsized.pdf' },
+    });
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    expect(await screen.findByText('unsized.pdf')).toBeInTheDocument();
+  });
+
+  it('shows the raw role when it has no friendly label', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      applicant: { ...applicantProfile.applicant, role: 'moderator' },
+    });
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    expect(await screen.findByText('moderator')).toBeInTheDocument();
+  });
+
+  it('omits the company when the applied-for job has none', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      application: {
+        ...applicantProfile.application,
+        job: { _id: 'job-1', title: 'Backend Engineer' },
+      },
+    });
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    expect(await screen.findByText(/Backend Engineer — Applied/)).toBeInTheDocument();
+    expect(screen.queryByText(/at Acme Corp/)).not.toBeInTheDocument();
+  });
+
+  it('downloads under a generic filename when the resume has no name', async () => {
+    fetchApplicationApplicant.mockResolvedValue({
+      ...applicantProfile,
+      resume: { size: 2048 },
+    });
+    fetchApplicationResumeBlobUrl.mockResolvedValue('blob:resume');
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    await screen.findByText('Jane Doe');
+    fireEvent.click(screen.getByText('Download Resume'));
+
+    await waitFor(() => expect(downloadBlobUrl).toHaveBeenCalledWith('blob:resume', 'resume'));
+  });
+
+  it('shows an error when the resume cannot be opened inline', async () => {
+    fetchApplicationResumeBlobUrl.mockRejectedValue(new Error('Failed to fetch resume file'));
+    window.open = jest.fn();
+
+    render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+
+    await screen.findByText('Jane Doe');
+    fireEvent.click(screen.getByText('View Resume'));
+
+    expect(await screen.findByText('Failed to fetch resume file')).toBeInTheDocument();
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it('ignores a profile that finishes loading after the panel closes', async () => {
+    let resolveLoad;
+    fetchApplicationApplicant.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      })
+    );
+
+    const { unmount } = render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+    unmount();
+
+    await act(async () => {
+      resolveLoad(applicantProfile);
+    });
+
+    expect(fetchApplicationApplicant).toHaveBeenCalledWith('token', 'app-1');
+  });
+
+  it('ignores a load failure that happens after the panel closes', async () => {
+    let rejectLoad;
+    fetchApplicationApplicant.mockReturnValue(
+      new Promise((resolve, reject) => {
+        rejectLoad = reject;
+      })
+    );
+
+    const { unmount } = render(<ApplicantProfilePanel applicationId="app-1" onClose={() => {}} />);
+    unmount();
+
+    await act(async () => {
+      rejectLoad(new Error('late failure'));
+    });
+
+    expect(fetchApplicationApplicant).toHaveBeenCalledWith('token', 'app-1');
+  });
+});
