@@ -156,11 +156,12 @@ function JobList({ onViewDetails }) {
         return (
             jobs.map((job) => {
                 const isSaved = visibleFavoriteIds.has(job._id);
+                const deadline = formatDeadline(job.dueDate);
                 return (
                     <div key={job._id} style={{ border: '1px solid #ccc', padding: '15px', margin: '10px 0' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h3 style={{ margin: 0 }}>{job.title}</h3>
-                            {isJobSeeker && (
+                            {isJobSeeker ? (
                                 <button
                                     type="button"
                                     onClick={() => handleToggleFavorite(job._id)}
@@ -178,14 +179,14 @@ function JobList({ onViewDetails }) {
                                 >
                                     {isSaved ? '★ Saved' : '☆ Save Job'}
                                 </button>
-                            )}
+                            ) : null}
                         </div>
                         <p><strong>Company:</strong> {job.company}</p>
                         <p><strong>Location:</strong> {job.location} | <strong>Category:</strong> {job.category}</p>
                         <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>
-                        {formatDeadline(job.dueDate) && (
-                            <p className="job-card-deadline"><strong>{formatDeadline(job.dueDate)}</strong></p>
-                        )}
+                        {deadline ? (
+                            <p className="job-card-deadline"><strong>{deadline}</strong></p>
+                        ) : null}
                         <button onClick={() => onViewDetails(job._id)}>View Details</button>
                     </div>
                 );
