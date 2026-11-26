@@ -496,10 +496,8 @@ describe('Job recommendations: complete workflow', () => {
 // Expired postings elsewhere in the app
 // ==========================================================================
 describe('Expired postings', () => {
-    // Known bug: PR #61 says the job list "only includes available job
-    // postings", but GET /api/jobs filters out archived postings only, so
-    // expired postings still appear in Find Jobs.
-    it.failing('KNOWN BUG: hides expired postings from the public job list', async () => {
+    // Fixed in SCRUM-365: GET /api/jobs now hides postings past their due date.
+    it('hides expired postings from the public job list', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
         await createJob(recruiterId, { title: 'Open role' });
         await createJob(recruiterId, { title: 'Expired role', dueDate: new Date(Date.now() - DAY) });
