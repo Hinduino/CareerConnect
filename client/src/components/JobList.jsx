@@ -3,6 +3,28 @@ import { formatPostedDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { fetchFavoriteJobIds, toggleFavoriteJob } from '../api/favoriteApi';
 
+const DEFAULT_CATEGORIES = ['Engineering', 'Design', 'Marketing'];
+const EMPTY_FILTERS = { keyword: '', location: '', category: '' };
+
+// Category options: the defaults plus every category used by an open posting,
+// so postings with a custom category (e.g. "Software Engineering") can still
+// be found with the category filter.
+function getCategoryOptions(jobs) {
+    const categories = new Set(DEFAULT_CATEGORIES);
+    jobs.forEach((job) => {
+        if (typeof job.category === 'string' && job.category.trim()) {
+            categories.add(job.category.trim());
+        }
+    });
+    return [...categories].sort((a, b) => a.localeCompare(b));
+}
+
+function formatDeadline(dueDate) {
+    if (!dueDate) return '';
+    const date = new Date(dueDate);
+    return Number.isNaN(date.getTime()) ? '' : `Apply by ${date.toLocaleDateString()}`;
+}
+
 async function requestJobs(filters) {
     try {
         const queryParams = new URLSearchParams(filters).toString();
@@ -26,17 +48,20 @@ function JobList({ onViewDetails }) {
     const [keyword, setKeyword] = useState('');
     const [location, setLocation] = useState('');
     const [category, setCategory] = useState('');
+    const [categoryOptions, setCategoryOptions] = useState(DEFAULT_CATEGORIES);
+    const [hasSearched, setHasSearched] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         let cancelled = false;
         
-        requestJobs({ keyword: '', location: '', category: '' }).then((data) => {
+        requestJobs(EMPTY_FILTERS).then((data) => {
             if (!cancelled) {
                 setIsLoading(false);
                 if (data) {
                     setJobs(data);
+                    setCategoryOptions(getCategoryOptions(data));
                 } else {
                     setError('Failed to load jobs. Please check your connection.');
                 }
@@ -81,19 +106,91 @@ function JobList({ onViewDetails }) {
         }
     };
 
-    const handleFilterSubmit = async (e) => {
-        e.preventDefault();
+    const loadJobs = async (filters) => {
         setIsLoading(true);
         setError('');
-        
-        const data = await requestJobs({ keyword, location, category });
-        
+
+        const data = await requestJobs(filters);
+
         setIsLoading(false);
         if (data) {
             setJobs(data);
         } else {
             setError('Failed to fetch jobs. Please try again later.');
         }
+    };
+
+    const handleFilterSubmit = async (e) => {
+        e.preventDefault();
+        setHasSearched(Boolean(keyword.trim() || location.trim() || category));
+        await loadJobs({ keyword, location, category });
+    };
+
+    const handleClearFilters = async () => {
+        setKeyword('');
+        setLocation('');
+        setCategory('');
+        setHasSearched(false);
+        await loadJobs(EMPTY_FILTERS);
+    };
+
+    // One state at a time: loading, error, results, or an empty message.
+    // (A plain function instead of nested ternaries in the JSX.)
+    const renderResults = () => {
+        if (isLoading) {
+            return <p>Loading jobs...</p>;
+        }
+        if (error) {
+            return <p style={{ color: 'red' }}>{error}</p>;
+        }
+        if (jobs.length === 0) {
+            return hasSearched ? (
+                <div className="job-list-empty">
+                    <p>No jobs match your search. Try different keywords or filters.</p>
+                    <button type="button" onClick={handleClearFilters}>Clear filters</button>
+                </div>
+            ) : (
+                <p>There are no open job postings right now.</p>
+            );
+        }
+        return (
+            jobs.map((job) => {
+                const isSaved = visibleFavoriteIds.has(job._id);
+                return (
+                    <div key={job._id} style={{ border: '1px solid #ccc', padding: '15px', margin: '10px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0 }}>{job.title}</h3>
+                            {isJobSeeker && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleFavorite(job._id)}
+                                    disabled={togglingId === job._id}
+                                    aria-pressed={isSaved}
+                                    style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        border: isSaved ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                                        backgroundColor: isSaved ? '#fef3c7' : '#ffffff',
+                                        color: isSaved ? '#b45309' : '#334155',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {isSaved ? '★ Saved' : '☆ Save Job'}
+                                </button>
+                            )}
+                        </div>
+                        <p><strong>Company:</strong> {job.company}</p>
+                        <p><strong>Location:</strong> {job.location} | <strong>Category:</strong> {job.category}</p>
+                        <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>
+                        {formatDeadline(job.dueDate) && (
+                            <p className="job-card-deadline"><strong>{formatDeadline(job.dueDate)}</strong></p>
+                        )}
+                        <button onClick={() => onViewDetails(job._id)}>View Details</button>
+                    </div>
+                );
+            })
+        );
     };
 
     return (
@@ -104,66 +201,28 @@ function JobList({ onViewDetails }) {
                 <input
                     type="text"
                     placeholder="Keyword"
+                    aria-label="Keyword"
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                 />
                 <input
                     type="text"
                     placeholder="Location"
+                    aria-label="Location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                 />
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
                     <option value="">All Categories</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Design">Design</option>
-                    <option value="Marketing">Marketing</option>
+                    {categoryOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                    ))}
                 </select>
                 <button type="submit">Search</button>
             </form>
 
             <div className="job-cards">
-                {isLoading ? (
-                    <p>Loading jobs...</p>
-                ) : error ? (
-                    <p style={{ color: 'red' }}>{error}</p>
-                ) : jobs.length > 0 ? (
-                    jobs.map((job) => {
-                        const isSaved = visibleFavoriteIds.has(job._id);
-                        return (
-                            <div key={job._id} style={{ border: '1px solid #ccc', padding: '15px', margin: '10px 0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ margin: 0 }}>{job.title}</h3>
-                                    {isJobSeeker && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleToggleFavorite(job._id)}
-                                            disabled={togglingId === job._id}
-                                            aria-pressed={isSaved}
-                                            style={{
-                                                padding: '6px 12px',
-                                                borderRadius: '6px',
-                                                border: isSaved ? '1px solid #f59e0b' : '1px solid #cbd5e1',
-                                                backgroundColor: isSaved ? '#fef3c7' : '#ffffff',
-                                                color: isSaved ? '#b45309' : '#334155',
-                                                fontWeight: '600',
-                                                cursor: 'pointer',
-                                            }}
-                                        >
-                                            {isSaved ? '★ Saved' : '☆ Save Job'}
-                                        </button>
-                                    )}
-                                </div>
-                                <p><strong>Company:</strong> {job.company}</p>
-                                <p><strong>Location:</strong> {job.location} | <strong>Category:</strong> {job.category}</p>
-                                <p className="job-card-dates">{formatPostedDate(job.createdAt)}</p>
-                                <button onClick={() => onViewDetails(job._id)}>View Details</button>
-                            </div>
-                        );
-                    })
-                ) : (
-                    <p>No jobs found.</p>
-                )}
+                {renderResults()}
             </div>
         </div>
     );
