@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Application = require("../models/Application");
 const JobPosting = require("../models/JobPosting");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
@@ -10,6 +11,14 @@ const RECRUITER_EDITABLE_STATUSES = [
   APPLICATION_STATUSES.OFFERED,
   APPLICATION_STATUSES.REJECTED,
 ];
+
+function toSafeObjectId(value) {
+  if (typeof value !== "string" || !/^[a-fA-F0-9]{24}$/.test(value)) {
+    throw new Error("Invalid identifier.");
+  }
+
+  return new mongoose.Types.ObjectId(value);
+}
 
 async function createApplication(userId, jobId, resumeId) {
   if (!resumeId) {
@@ -43,8 +52,8 @@ async function createApplication(userId, jobId, resumeId) {
 
 async function cancelApplication(userId, applicationId) {
   const application = await Application.findOneAndDelete({
-    _id: applicationId,
-    applicant: userId
+    _id: toSafeObjectId(applicationId),
+    applicant: toSafeObjectId(userId)
   });
 
   if (!application) {
@@ -72,7 +81,9 @@ async function declineJobOffer(applicationId, userId) {
 }
 
 async function getApplicationHistoryByUser(userId) {
-  return Application.find({ applicant: userId })
+  return Application.find({
+    applicant: toSafeObjectId(userId)
+  })
     .populate("job", "title company location category description requirements")
     .sort({ createdAt: -1 });
 }

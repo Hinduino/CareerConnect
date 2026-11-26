@@ -2,7 +2,7 @@
 // PR #50 (updateApplicationStatus, getMyApplications) and
 // PR #51 (declineJobOffer, getApplicationHistoryByUser).
 // The database models are mocked, so these run without MongoDB.
-
+const mongoose = require("mongoose");
 jest.mock("../models/Application", () => ({
   findOne: jest.fn(),
   findById: jest.fn(),
@@ -163,38 +163,38 @@ describe("SCRUM-106 application queries", () => {
       await expect(declineJobOffer(applicationId, applicantId)).rejects.toThrow("Application not found.");
     });
   });
-
   describe("getMyApplications (PR #50)", () => {
-    it("loads the applicant's applications newest first, without the resume file", async () => {
-      const rows = [{ _id: "a2" }, { _id: "a1" }];
-      const query = chainableQuery(rows);
-      Application.find.mockReturnValue(query);
+  it("loads the applicant's applications newest first, without the resume file", async () => {
+    const rows = [{ _id: "a2" }, { _id: "a1" }];
+    const query = chainableQuery(rows);
+    Application.find.mockReturnValue(query);
 
-      const result = await getMyApplications(applicantId);
+    const result = await getMyApplications(applicantId);
 
-      expect(result).toBe(rows);
-      expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
-      expect(query.select).toHaveBeenCalledWith("_id job status createdAt updatedAt");
-      expect(query.populate).toHaveBeenCalledWith("job", "title company location category");
-      expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
-    });
+    expect(result).toBe(rows);
+    expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
+    expect(query.select).toHaveBeenCalledWith("_id job status createdAt updatedAt");
+    expect(query.populate).toHaveBeenCalledWith("job", "title company location category");
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
   });
-
+});
   describe("getApplicationHistoryByUser (PR #51)", () => {
-    it("loads the applicant's history newest first with full job details", async () => {
-      const rows = [{ _id: "a1" }];
-      const query = chainableQuery(rows);
-      Application.find.mockReturnValue(query);
+  it("loads the applicant's history newest first with full job details", async () => {
+    const rows = [{ _id: "a1" }];
+    const query = chainableQuery(rows);
+    Application.find.mockReturnValue(query);
 
-      const result = await getApplicationHistoryByUser(applicantId);
+    const result = await getApplicationHistoryByUser(applicantId);
 
-      expect(result).toBe(rows);
-      expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
-      expect(query.populate).toHaveBeenCalledWith(
-        "job",
-        "title company location category description requirements"
-      );
-      expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(result).toBe(rows);
+    expect(Application.find).toHaveBeenCalledWith({
+      applicant: new mongoose.Types.ObjectId(applicantId)
     });
+    expect(query.populate).toHaveBeenCalledWith(
+      "job",
+      "title company location category description requirements"
+    );
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
   });
+});
 });
