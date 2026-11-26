@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors'); // Import CORS
 const multer = require('multer');
@@ -23,10 +23,6 @@ if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-
-if (process.env.NODE_ENV !== 'test') {
-    connectDB().then(startApplicationReminderScheduler);
-}
 
 // Middleware
 app.use(cors()); // Allow frontend to communicate with backend
@@ -63,6 +59,12 @@ app.use((err, req, res, next) => {
             : err.message;
         return res.status(400).json({ error: message });
     }
+    if (err?.type === 'entity.parse.failed') {
+        return res.status(400).json({ error: 'Request body must contain valid JSON.' });
+    }
+    if (err?.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Request body is too large.' });
+    }
     if (err && err.message && (
         err.message.includes('Only PDF, DOC, and DOCX')
         || err.message.includes('images are allowed')
@@ -70,14 +72,28 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: err.message });
     }
 
-    console.error(err.stack);
+    console.error(err instanceof Error ? err.stack || err.message : String(err));
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
 if (process.env.NODE_ENV !== 'test') {
-    app.listen(PORT, () => {
-        console.log(`Server listening on http://localhost:${PORT}`);
-    });
+    const startServer = async () => {
+        try {
+            await connectDB();
+            startApplicationReminderScheduler();
+            const server = app.listen(PORT, () => {
+                console.log(`Server listening on http://localhost:${PORT}`);
+            });
+            server.on('error', (error) => {
+                console.error('Server failed to listen:', error.message);
+                process.exit(1);
+            });
+        } catch (error) {
+            console.error('Server startup failed:', error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
+    };
+    void startServer();
 }
 
 module.exports = app; // Export the app for testing purposes

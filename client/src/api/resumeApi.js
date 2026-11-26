@@ -1,4 +1,5 @@
 import { API_BASE, authHeaders, parseJsonSafely } from "./http";
+import { fetchAiResponse } from "./aiRequest";
 
 // All of the logged-in user's saved resumes (metadata only).
 export async function fetchResumes(token) {
@@ -13,10 +14,10 @@ export async function fetchResumes(token) {
 }
 
 export async function fetchResumeFeedback(token, resumeId) {
-  const response = await fetch(`${API_BASE}/resumes/${encodeURIComponent(resumeId)}/feedback`, {
+  const response = await fetchAiResponse(`${API_BASE}/resumes/${encodeURIComponent(resumeId)}/feedback`, {
     method: "POST",
     headers: authHeaders(token),
-  });
+  }, "resume feedback");
   const data = await parseJsonSafely(response);
   if (!response.ok) {
     throw new Error(data?.error || "Failed to get resume feedback");
@@ -24,10 +25,13 @@ export async function fetchResumeFeedback(token, resumeId) {
   const feedback = data?.feedback;
   if (
     typeof feedback?.summary !== "string"
+    || !feedback.summary.trim()
     || !Array.isArray(feedback.strengths)
-    || !feedback.strengths.every((item) => typeof item === "string")
+    || !feedback.strengths.length
+    || !feedback.strengths.every((item) => typeof item === "string" && item.trim())
     || !Array.isArray(feedback.recommendations)
-    || !feedback.recommendations.every((item) => typeof item === "string")
+    || !feedback.recommendations.length
+    || !feedback.recommendations.every((item) => typeof item === "string" && item.trim())
   ) {
     throw new Error("Resume feedback returned an invalid response.");
   }

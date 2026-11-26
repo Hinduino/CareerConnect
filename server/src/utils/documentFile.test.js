@@ -84,4 +84,8 @@ describe("hasSupportedDocumentSignature", () => {
     expect(hasSupportedDocumentSignature(file("resume.pdf", PDF_TYPE, undefined))).toBe(false);
     expect(hasSupportedDocumentSignature(file("resume.pdf", PDF_TYPE, "%PDF-1.7"))).toBe(false);
   });
+
+  it("rejects an unknown extension even when its MIME type is also absent", () => {
+    expect(hasSupportedDocumentSignature(file("resume.unknown", undefined, Buffer.from("data")))).toBe(false);
+  });
 });

@@ -103,6 +103,12 @@ body {
   gap: 1rem;
 }
 
+.recommendations-ai-indicator {
+  margin-left: 0.45rem;
+  color: var(--cc-primary, #5630b4);
+  font-size: 0.85em;
+}
+
 
 /* Resume Manager Section */
 .resume-manager-section {
@@ -501,11 +507,12 @@ body {
 
 .chatbot-launcher {
   display: flex;
+  width: 3.5rem;
   align-items: center;
   justify-content: center;
   min-width: 3.5rem;
   height: 3.5rem;
-  padding: 0 1rem;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: var(--cc-primary, #5630b4);

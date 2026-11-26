@@ -8,6 +8,7 @@ import {
   fetchResumeFeedback,
 } from '../api/resumeApi';
 import { useAuth } from '../context/AuthContext';
+import ResumeFeedback from './ResumeFeedback';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
 const MAX_FILE_SIZE_MB = 5;
@@ -314,36 +315,11 @@ function ResumeManager() {
       )}
 
       {canGetResumeFeedback && (
-        <section className="resume-feedback" aria-labelledby="resume-feedback-title" aria-live="polite">
-          <h3 id="resume-feedback-title">AI Resume Feedback</h3>
-          {feedbackLoadingId && <p role="status">Analyzing your resume...</p>}
-          {visibleFeedbackError && <p className="resume-error" role="alert">{visibleFeedbackError}</p>}
-          {!visibleFeedback && !feedbackLoadingId && !visibleFeedbackError && (
-            <p className="resume-hint">
-              Choose Resume Feedback beside a saved resume to get a summary, strengths, and improvement suggestions.
-            </p>
-          )}
-          {visibleFeedback && (
-            <div>
-              <p className="resume-meta">Feedback for {visibleFeedback.resumeName}</p>
-              <p>{visibleFeedback.summary}</p>
-              <div className="resume-feedback-columns">
-                <div>
-                  <h4>Strengths</h4>
-                  {visibleFeedback.strengths.length > 0 ? (
-                    <ul>{visibleFeedback.strengths.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
-                  ) : <p>No strengths were identified.</p>}
-                </div>
-                <div>
-                  <h4>Recommendations</h4>
-                  {visibleFeedback.recommendations.length > 0 ? (
-                    <ul>{visibleFeedback.recommendations.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
-                  ) : <p>No improvement suggestions were returned.</p>}
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+        <ResumeFeedback
+          feedback={visibleFeedback}
+          loading={Boolean(feedbackLoadingId)}
+          error={visibleFeedbackError}
+        />
       )}
 
       <input
