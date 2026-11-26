@@ -56,8 +56,9 @@ function JobList({ onViewDetails }) {
     useEffect(() => {
         let cancelled = false;
         
-        requestJobs(EMPTY_FILTERS).then((data) => {
-            if (!cancelled) {
+        requestJobs(EMPTY_FILTERS)
+            .then((data) => {
+                if (cancelled) return;
                 setIsLoading(false);
                 if (data) {
                     setJobs(data);
@@ -65,8 +66,13 @@ function JobList({ onViewDetails }) {
                 } else {
                     setError('Failed to load jobs. Please check your connection.');
                 }
-            }
-        });
+            })
+            .catch((err) => {
+                console.error('Failed to load jobs:', err);
+                if (cancelled) return;
+                setIsLoading(false);
+                setError('Failed to load jobs. Please check your connection.');
+            });
         return () => {
             cancelled = true;
         };
