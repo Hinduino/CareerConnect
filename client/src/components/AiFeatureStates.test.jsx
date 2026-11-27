@@ -3,9 +3,6 @@
 // which the story requires: "Provide loading indicators while AI requests are
 // being processed" and "Display clear error messages when AI analysis is
 // unavailable". Complements Recommendations.test.jsx and ResumeManager.test.jsx.
-//
-// Tests written with `it.failing` document known gaps. They pass while the
-// gap exists and start failing once it is fixed.
 const { fireEvent, render, screen, waitFor, within } = require('@testing-library/react');
 
 jest.mock('../context/AuthContext', () => ({ useAuth: jest.fn() }));
@@ -229,10 +226,7 @@ describe('Recommendations page states', () => {
     });
   });
 
-  // Known gap: SCRUM-110 requires AI recommendations to be "clearly
-  // identified as suggestions rather than guaranteed results", but the page
-  // shows no notice that the matches are AI-generated.
-  it.failing('KNOWN GAP: tells the applicant the matches are AI-generated suggestions', async () => {
+  it('identifies AI-generated recommendations as suggestions', async () => {
     renderRecommendations();
     await screen.findByText('Frontend Developer');
 

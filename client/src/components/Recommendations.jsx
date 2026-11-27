@@ -4,6 +4,7 @@ import { toggleFavoriteJob, fetchFavoriteJobIds } from '../api/favoriteApi';
 import { submitApplication, fetchMyApplications } from '../api/applicationApi';
 import { fetchResumes } from '../api/resumeApi';
 import { useAuth } from '../context/AuthContext';
+import RecommendedJobCard from './RecommendedJobCard';
 
 function getResumeId(resume) {
   return resume._id || resume.id;
@@ -154,9 +155,14 @@ function Recommendations({ onViewDetails, onProfileClick }) {
     <main className="job-listing-container" style={pageStyle}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
-          <h2>Personalized Recommendations</h2>
+          <h2>
+            Personalized Recommendations
+            <span className="recommendations-ai-indicator" role="img" aria-label="AI-generated">
+              ✨
+            </span>
+          </h2>
           <p style={{ color: '#64748b' }}>
-            Active opportunities matched to your profile and selected resume.
+            AI-generated recommendations matched to your profile and selected resume.
           </p>
         </div>
         <button
@@ -247,87 +253,22 @@ function Recommendations({ onViewDetails, onProfileClick }) {
         </div>
       )}
 
-      {currentRequest?.result?.recommendations.map(({ job, reason, matchedQualifications, gaps }) => {
-        const jobId = String(job.id);
-        const isFavorite = favoriteIds.has(jobId);
-        const hasApplied = appliedIds.has(jobId);
-        const isBusy = busyJobId === jobId;
-
+      {currentRequest?.result?.recommendations.map((recommendation) => {
+        const jobId = String(recommendation.job.id);
         return (
-          <article key={jobId} style={cardStyle} aria-labelledby={`recommendation-${jobId}`}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-              <div>
-                <h3 id={`recommendation-${jobId}`} style={{ marginTop: 0 }}>{job.title}</h3>
-                <p><strong>{job.company}</strong> · {job.location}</p>
-                <p><strong>Category:</strong> {job.category}</p>
-              </div>
-              {job.dueDate && (
-                <p style={{ color: '#64748b' }}>
-                  Apply by {new Date(job.dueDate).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-
-            <section aria-label={`Why ${job.title} is recommended`}>
-              <h4>Why this job matches</h4>
-              <p>{reason}</p>
-            </section>
-
-            {matchedQualifications.length > 0 && (
-              <section>
-                <h4>Matching qualifications</h4>
-                <ul>{matchedQualifications.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
-              </section>
-            )}
-
-            {gaps.length > 0 && (
-              <section>
-                <h4>Requirements to consider</h4>
-                <ul>{gaps.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
-              </section>
-            )}
-
-            {actionMessage?.jobId === jobId && (
-              <p
-                role={actionMessage.type === 'error' ? 'alert' : 'status'}
-                style={{ color: actionMessage.type === 'error' ? '#b91c1c' : '#166534' }}
-              >
-                {actionMessage.text}
-              </p>
-            )}
-
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button type="button" className="btn-primary" onClick={() => onViewDetails(jobId)}>
-                View full posting
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={isBusy}
-                onClick={() => handleFavorite(jobId)}
-              >
-                {isFavorite ? '★ Saved' : '☆ Save job'}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={isBusy || hasApplied || !selectedResumeId || Boolean(applicationError)}
-                onClick={() => handleApply(jobId)}
-              >
-                {hasApplied
-                  ? 'Already applied'
-                  : (applicationError ? 'Application status unavailable' : (isBusy ? 'Submitting...' : 'Apply now'))}
-              </button>
-            </div>
-            {applicationError && (
-              <p style={{ color: '#64748b' }}>
-                Retry loading application history before applying.
-              </p>
-            )}
-            {!selectedResumeId && !hasApplied && (
-              <p style={{ color: '#64748b' }}>Select a saved resume to apply directly.</p>
-            )}
-          </article>
+          <RecommendedJobCard
+            key={jobId}
+            recommendation={recommendation}
+            isFavorite={favoriteIds.has(jobId)}
+            hasApplied={appliedIds.has(jobId)}
+            isBusy={busyJobId === jobId}
+            actionMessage={actionMessage}
+            applicationError={applicationError}
+            selectedResumeId={selectedResumeId}
+            onViewDetails={onViewDetails}
+            onFavorite={handleFavorite}
+            onApply={handleApply}
+          />
         );
       })}
     </main>

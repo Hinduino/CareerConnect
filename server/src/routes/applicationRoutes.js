@@ -11,6 +11,7 @@ const {
   cancelApplication,
   declineJobOffer,
   getApplicationStatus,
+  getApplicationHistoryByUser,
   getMyApplications,
   updateApplicationStatus,
 } = require('../queries/applicationqueries');
@@ -18,16 +19,18 @@ const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 const { createNotification } = require('../queries/notificationQueries');
 
+function isValidObjectId(value) {
+  return typeof value === 'string' &&
+    /^[a-fA-F0-9]{24}$/.test(value) &&
+    mongoose.isValidObjectId(value);
+}
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
 // ==========================================
 
 router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    const applications = await Application.find({ applicant: req.user.id })
-      .populate('job', 'title company location description requirements category')
-      .sort({ createdAt: -1 });
-
+    const applications = await getApplicationHistoryByUser(req.user.id);
     res.status(200).json(applications);
   } catch (err) {
     console.error('Error fetching application history:', err);
@@ -38,6 +41,9 @@ router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) 
 router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const { id } = req.params;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid application ID' });
+    }
     const updated = await declineJobOffer(id, req.user.id);
     const job = await JobPosting.findById(updated.job);
     if (job && job.postedBy) {
@@ -54,8 +60,16 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
     res.status(200).json({ message: 'Offer declined successfully.', application: updated });
   } catch (err) {
     console.error('Error declining offer:', err.message);
-    res.status(400).json({ error: err.message });
-  }
+
+    if (
+        err.message === 'Application not found.' ||
+        err.message === 'Cannot decline an offer unless one has been extended.'
+    ) {
+        return res.status(400).json({ error: err.message });
+    }
+
+    res.status(500).json({ error: 'Server error declining offer.' });
+}
 });
 
 router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
@@ -70,7 +84,7 @@ router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
 router.get('/status/:jobId', requireAuth, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.jobId)) {
+    if (!isValidObjectId(req.params.jobId)) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
@@ -82,7 +96,7 @@ router.get('/status/:jobId', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const { jobId, resumeId } = req.body;
 
@@ -90,8 +104,12 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
     }
 
-    if (!mongoose.isValidObjectId(jobId)) {
+    if (!isValidObjectId(jobId)) {
       return res.status(400).json({ error: 'Invalid job ID' });
+    }
+
+    if (!isValidObjectId(resumeId)) {
+      return res.status(400).json({ error: 'Invalid resume ID' });
     }
 
     const job = await JobPosting.findById(jobId);
@@ -131,8 +149,13 @@ router.post('/', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Application Submission Error:', error);
-    if (error.message === 'You have already applied for this job.') {
-      return res.status(409).json({ error: error.message });
+    if (
+      error.code === 11000 ||
+      error.message === 'You have already applied for this job.'
+    ) {
+      return res.status(409).json({
+        error: 'You have already applied for this job.'
+      });
     }
     if (
       error.message === 'Please select a resume to apply with.' ||
@@ -140,13 +163,13 @@ router.post('/', requireAuth, async (req, res) => {
     ) {
       return res.status(400).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message || 'Server error submitting application.' });
+    res.status(500).json({ error: 'Server error submitting application.' });
   }
 });
 
-router.delete('/:applicationId', requireAuth, async (req, res) => {
+router.delete('/:applicationId', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    if (!isValidObjectId(req.params.applicationId)) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
@@ -167,7 +190,7 @@ router.delete('/:applicationId', requireAuth, async (req, res) => {
 
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.jobId)) {
+    if (!isValidObjectId(req.params.jobId)) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
@@ -192,7 +215,7 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
 // to the recruiter's own job postings.
 router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    if (!isValidObjectId(req.params.applicationId)) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
@@ -238,7 +261,7 @@ router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), a
 
 router.get('/:applicationId/resume', requireAuth, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    if (!isValidObjectId(req.params.applicationId)) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
@@ -273,7 +296,7 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
 
 router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.applicationId)) {
+    if (!isValidObjectId(req.params.applicationId)) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 

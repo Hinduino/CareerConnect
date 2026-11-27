@@ -50,6 +50,7 @@ describe('Recommendations', () => {
     const onViewDetails = jest.fn();
     render(<Recommendations onViewDetails={onViewDetails} onProfileClick={jest.fn()} />);
 
+    expect(screen.getByRole('img', { name: 'AI-generated' })).toBeInTheDocument();
     expect(await screen.findByText('Your React experience matches this role.')).toBeInTheDocument();
     expect(screen.getByText('Matching qualifications')).toBeInTheDocument();
     expect(screen.getByText('Three years of experience is preferred.')).toBeInTheDocument();
@@ -99,4 +100,48 @@ describe('Recommendations', () => {
     expect(screen.getByRole('button', { name: 'Application status unavailable' })).toBeDisabled();
     expect(screen.getByText('Application history unavailable.')).toBeInTheDocument();
   });
+
+  it('accepts either resume ID shape and recognizes populated and raw applied job IDs', async () => {
+    fetchResumes.mockResolvedValue([{ id: 'resume-id', originalName: 'resume.pdf' }]);
+    fetchMyApplications.mockResolvedValue([
+      { job: { _id: 'job-1' } },
+      { job: 'job-2' },
+      {},
+    ]);
+    fetchRecommendations.mockResolvedValue({
+      recommendations: [
+        recommendation,
+        {
+          ...recommendation,
+          job: { ...recommendation.job, id: 'job-2', title: 'Data Analyst' },
+        },
+      ],
+    });
+
+    render(<Recommendations onViewDetails={jest.fn()} onProfileClick={jest.fn()} />);
+
+    expect(await screen.findAllByRole('button', { name: 'Already applied' })).toHaveLength(2);
+    expect(fetchRecommendations).toHaveBeenCalledWith('token', 'resume-id');
+  });
+
+  it('falls back to the current account resume after the account token changes', async () => {
+    fetchResumes.mockResolvedValue([
+      resume,
+      { _id: 'resume-2', originalName: 'updated-resume.pdf' },
+    ]);
+    const { rerender } = render(
+      <Recommendations onViewDetails={jest.fn()} onProfileClick={jest.fn()} />
+    );
+    await screen.findByText('Your React experience matches this role.');
+    fireEvent.change(screen.getByLabelText('Resume for matching and applications'), {
+      target: { value: 'resume-2' },
+    });
+    await waitFor(() => expect(fetchRecommendations).toHaveBeenCalledWith('token', 'resume-2'));
+
+    useAuth.mockReturnValue({ token: 'new-token' });
+    rerender(<Recommendations onViewDetails={jest.fn()} onProfileClick={jest.fn()} />);
+
+    await waitFor(() => expect(fetchRecommendations).toHaveBeenCalledWith('new-token', 'resume-1'));
+  });
+
 });

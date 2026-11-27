@@ -101,6 +101,11 @@ function Navbar({
                 aria-current={currentView === item.view ? 'page' : undefined}
               >
                 {item.label}
+                {item.view === 'recommendations' && (
+                  <span className="recommendations-ai-indicator" role="img" aria-label="AI-generated">
+                    ✨
+                  </span>
+                )}
               </button>
             ))}
           </nav>
