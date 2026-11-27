@@ -20,6 +20,7 @@ const { fetchMyJobs, createJob, updateJob, deleteJob, fetchJobApplications } = r
 const {
   fetchApplicationResumeBlobUrl,
   fetchApplicationApplicant,
+  updateApplicationStatus,
 } = require('../api/applicationApi');
 
 const sampleJob = {
@@ -41,7 +42,7 @@ describe('RecruiterDashboard', () => {
     fetchMyJobs.mockResolvedValue([sampleJob]);
   });
 
-  it('loads and displays the recruiter\'s own postings with a posted date', async () => {
+  it("loads and displays the recruiter's own postings with a posted date", async () => {
     render(<RecruiterDashboard onBack={() => {}} />);
 
     expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
@@ -49,7 +50,7 @@ describe('RecruiterDashboard', () => {
     expect(screen.getByText(/Posted today/)).toBeInTheDocument();
   });
 
-  it('shows an empty state when the recruiter has no postings', async () => {
+  it("shows an empty state when the recruiter has no postings", async () => {
     fetchMyJobs.mockResolvedValue([]);
     render(<RecruiterDashboard onBack={() => {}} />);
 
@@ -58,7 +59,9 @@ describe('RecruiterDashboard', () => {
 
   it('creates a new job posting through the form', async () => {
     createJob.mockResolvedValue({ ...sampleJob, _id: 'job-2', title: 'New Role' });
-    fetchMyJobs.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...sampleJob, _id: 'job-2', title: 'New Role' }]);
+    fetchMyJobs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...sampleJob, _id: 'job-2', title: 'New Role' }]);
     render(<RecruiterDashboard onBack={() => {}} />);
 
     await screen.findByText(/haven't posted any jobs yet/);
@@ -73,7 +76,9 @@ describe('RecruiterDashboard', () => {
 
     fireEvent.click(screen.getByText('Post Job'));
 
-    await waitFor(() => expect(createJob).toHaveBeenCalledWith('token', expect.objectContaining({ title: 'New Role' })));
+    await waitFor(() =>
+      expect(createJob).toHaveBeenCalledWith('token', expect.objectContaining({ title: 'New Role' }))
+    );
     expect(await screen.findByText('New Role')).toBeInTheDocument();
   });
 
@@ -90,38 +95,43 @@ describe('RecruiterDashboard', () => {
     fireEvent.click(screen.getByText('Save Changes'));
 
     await waitFor(() =>
-      expect(updateJob).toHaveBeenCalledWith('token', 'job-1', expect.objectContaining({ title: 'Updated Title' }))
+      expect(updateJob).toHaveBeenCalledWith(
+        'token',
+        'job-1',
+        expect.objectContaining({ title: 'Updated Title' })
+      )
     );
   });
+
   // Verify that confirming deletion removes the posting.
-it('deletes a job posting after confirmation', async () => {
-  window.confirm = jest.fn(() => true);
-  deleteJob.mockResolvedValue({ message: 'Job posting deleted successfully' });
+  it('deletes a job posting after confirmation', async () => {
+    window.confirm = jest.fn(() => true);
+    deleteJob.mockResolvedValue({ message: 'Job posting deleted successfully' });
 
-  render(<RecruiterDashboard onBack={() => {}} />);
+    render(<RecruiterDashboard onBack={() => {}} />);
 
-  await screen.findByText('Backend Engineer');
-  fireEvent.click(screen.getByText('Delete Posting'));
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('Delete Posting'));
 
-  expect(window.confirm).toHaveBeenCalled();
+    expect(window.confirm).toHaveBeenCalled();
 
-  await waitFor(() => {
-    expect(deleteJob).toHaveBeenCalledWith('token', 'job-1');
-    expect(screen.queryByText('Backend Engineer')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(deleteJob).toHaveBeenCalledWith('token', 'job-1');
+      expect(screen.queryByText('Backend Engineer')).not.toBeInTheDocument();
+    });
   });
-});
 
-// Verify that cancelling deletion keeps the posting.
-it('does not delete a posting when confirmation is cancelled', async () => {
-  window.confirm = jest.fn(() => false);
+  // Verify that cancelling deletion keeps the posting.
+  it('does not delete a posting when confirmation is cancelled', async () => {
+    window.confirm = jest.fn(() => false);
 
-  render(<RecruiterDashboard onBack={() => {}} />);
+    render(<RecruiterDashboard onBack={() => {}} />);
 
-  await screen.findByText('Backend Engineer');
-  fireEvent.click(screen.getByText('Delete Posting'));
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('Delete Posting'));
 
-  expect(deleteJob).not.toHaveBeenCalled();
-  expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    expect(deleteJob).not.toHaveBeenCalled();
+    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
   });
 
   it("opens an applicant's profile from the applications table", async () => {
@@ -193,5 +203,53 @@ it('does not delete a posting when confirmation is cancelled', async () => {
     await waitFor(() =>
       expect(fetchApplicationResumeBlobUrl).toHaveBeenCalledWith('token', 'app-1', { download: true })
     );
+  });
+
+  it('updates only the changed application status in the per-posting view', async () => {
+    const interviewDate = '2026-12-01T14:30';
+    const appOne = {
+      _id: 'app-1',
+      status: 'Applied',
+      createdAt: new Date().toISOString(),
+      applicant: { name: 'Jane Doe', email: 'jane@example.com', location: 'Montreal' },
+      resume: { originalName: 'jane-resume.pdf' },
+    };
+    const appTwo = {
+      _id: 'app-2',
+      status: 'Applied',
+      createdAt: new Date().toISOString(),
+      applicant: { name: 'Applicant', email: 'Unavailable', location: 'Not provided' },
+      resume: { originalName: 'app-resume.pdf' },
+    };
+
+    fetchJobApplications.mockResolvedValue([appOne, appTwo]);
+    updateApplicationStatus.mockResolvedValue({
+      application: {
+        _id: 'app-1',
+        status: 'Interview',
+        interviewDate: new Date(interviewDate).toISOString(),
+      },
+    });
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+
+    const select = await screen.findByLabelText('Application status for Jane Doe');
+    fireEvent.change(select, { target: { value: 'Interview' } });
+
+    const dateInput = await screen.findByLabelText(/Interview Date & Time/i);
+    fireEvent.change(dateInput, { target: { value: interviewDate } });
+    fireEvent.click(screen.getByText('Confirm & Send Invite'));
+
+    await waitFor(() => expect(select).toHaveValue('Interview'));
+    expect(updateApplicationStatus).toHaveBeenCalledWith(
+      'token',
+      'app-1',
+      'Interview',
+      expect.any(String)
+    );
+    expect(screen.getByLabelText('Application status for Applicant')).toHaveValue('Applied');
   });
 });
