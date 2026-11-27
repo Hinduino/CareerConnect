@@ -163,3 +163,13 @@ describe("PUT /api/profile", () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe("PUT /api/profile without a JSON body", () => {
+  it("rejects the update instead of crashing on the missing body", async () => {
+    const res = await request(app).put("/api/profile");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Email is required");
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+});

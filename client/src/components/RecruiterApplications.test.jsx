@@ -298,3 +298,60 @@ describe('Recruiter Applications page', () => {
     );
   });
 });
+describe('Recruiter Applications page edge cases', () => {
+  const { act } = require('@testing-library/react');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuth.mockReturnValue({ token: 'token' });
+    fetchMyJobs.mockResolvedValue(jobs);
+    fetchJobApplications.mockImplementation(async (_token, jobId) => applicationsByJob[jobId]);
+  });
+
+  it('shows "Unavailable" when an applicant has no email', async () => {
+    fetchMyJobs.mockResolvedValue([jobs[0]]);
+    fetchJobApplications.mockResolvedValue([
+      { _id: 'app-9', status: 'Applied', createdAt: now, applicant: { name: 'No Email' }, resume: {} },
+    ]);
+    renderApplicationsPage();
+
+    expect(await screen.findByText('No Email')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  });
+
+  it('ignores applications that finish loading after leaving the page', async () => {
+    let resolveJobs;
+    fetchMyJobs.mockReturnValue(
+      new Promise((resolve) => {
+        resolveJobs = resolve;
+      })
+    );
+
+    const { unmount } = renderApplicationsPage();
+    unmount();
+
+    await act(async () => {
+      resolveJobs(jobs);
+    });
+
+    expect(fetchMyJobs).toHaveBeenCalledWith('token');
+  });
+
+  it('ignores a load failure that happens after leaving the page', async () => {
+    let rejectJobs;
+    fetchMyJobs.mockReturnValue(
+      new Promise((resolve, reject) => {
+        rejectJobs = reject;
+      })
+    );
+
+    const { unmount } = renderApplicationsPage();
+    unmount();
+
+    await act(async () => {
+      rejectJobs(new Error('late failure'));
+    });
+
+    expect(fetchMyJobs).toHaveBeenCalledWith('token');
+  });
+});

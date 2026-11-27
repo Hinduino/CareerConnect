@@ -23,6 +23,10 @@ const {
   updateApplicationStatus,
 } = require('../api/applicationApi');
 
+// A single timestamp keeps createdAt === updatedAt, so the "Updated" badge
+// is deterministically hidden for this job.
+const postedAt = new Date().toISOString();
+
 const sampleJob = {
   _id: 'job-1',
   title: 'Backend Engineer',
@@ -31,8 +35,8 @@ const sampleJob = {
   category: 'Engineering',
   description: 'Build APIs.',
   requirements: '2+ years',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: postedAt,
+  updatedAt: postedAt,
 };
 
 describe('RecruiterDashboard', () => {
@@ -251,5 +255,173 @@ describe('RecruiterDashboard', () => {
       expect.any(String)
     );
     expect(screen.getByLabelText('Application status for Applicant')).toHaveValue('Applied');
+  });
+});
+
+describe('RecruiterDashboard edge cases', () => {
+  const sampleApplication = {
+    _id: 'app-1',
+    status: 'Applied',
+    createdAt: new Date().toISOString(),
+    applicant: { name: 'Jane Doe', email: 'jane@example.com', location: 'Montreal' },
+    resume: { originalName: 'jane-resume.pdf' },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuth.mockReturnValue({ token: 'token' });
+    fetchMyJobs.mockResolvedValue([sampleJob]);
+  });
+
+  it('clears the postings instead of fetching when there is no auth token', async () => {
+    useAuth.mockReturnValue({ token: null });
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    expect(screen.getByText('Loading your job postings...')).toBeInTheDocument();
+    await waitFor(() => expect(fetchMyJobs).not.toHaveBeenCalled());
+  });
+
+  it('shows an error when the postings cannot be loaded', async () => {
+    fetchMyJobs.mockRejectedValue(new Error('Server error loading jobs'));
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    expect(await screen.findByText('Server error loading jobs')).toBeInTheDocument();
+  });
+
+  it('shows an updated date when a posting was edited after creation', async () => {
+    fetchMyJobs.mockResolvedValue([
+      { ...sampleJob, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z' },
+    ]);
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    expect(await screen.findByText(/Updated/)).toBeInTheDocument();
+  });
+
+  it('shows an error when the applications for a posting cannot be loaded', async () => {
+    fetchJobApplications.mockRejectedValue(new Error('Cannot load applications'));
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+
+    expect(await screen.findByText('Cannot load applications')).toBeInTheDocument();
+  });
+
+  it('shows an empty state when a posting has no applications', async () => {
+    fetchJobApplications.mockResolvedValue([]);
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+
+    expect(await screen.findByText('No applications received yet.')).toBeInTheDocument();
+  });
+
+  it('returns from the applications view to the postings list', async () => {
+    fetchJobApplications.mockResolvedValue([]);
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+    await screen.findByText('No applications received yet.');
+
+    fireEvent.click(screen.getByText('Back to Postings'));
+
+    expect(await screen.findByText('Post a New Job')).toBeInTheDocument();
+  });
+
+  it('falls back to placeholders when an applicant has no profile details', async () => {
+    const otherApplication = {
+      _id: 'app-2',
+      status: 'Applied',
+      createdAt: new Date().toISOString(),
+      applicant: {},
+      resume: {},
+    };
+    fetchJobApplications.mockResolvedValue([sampleApplication, otherApplication]);
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+    await screen.findByText('Jane Doe');
+
+    expect(screen.getByRole('cell', { name: 'Applicant' })).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Not provided')).toBeInTheDocument();
+  });
+
+  it('downloads under a generic filename when the resume has no name', async () => {
+    fetchJobApplications.mockResolvedValue([{ ...sampleApplication, resume: {} }]);
+    fetchApplicationResumeBlobUrl.mockResolvedValue('blob:resume');
+    URL.revokeObjectURL = jest.fn();
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+    await screen.findByText('Jane Doe');
+
+    fireEvent.click(screen.getByText('Download Resume'));
+
+    await waitFor(() =>
+      expect(fetchApplicationResumeBlobUrl).toHaveBeenCalledWith('token', 'app-1', { download: true })
+    );
+  });
+
+  it('shows an error when the resume download fails', async () => {
+    fetchJobApplications.mockResolvedValue([sampleApplication]);
+    fetchApplicationResumeBlobUrl.mockRejectedValue(new Error('Resume no longer available'));
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('View Applications'));
+    await screen.findByText('Jane Doe');
+
+    fireEvent.click(screen.getByText('Download Resume'));
+
+    expect(await screen.findByText('Resume no longer available')).toBeInTheDocument();
+  });
+
+  it('keeps the posting and shows an error when deletion fails', async () => {
+    window.confirm = jest.fn(() => true);
+    deleteJob.mockRejectedValue(new Error('Not authorized to delete this job'));
+
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('Delete Posting'));
+
+    expect(await screen.findByText('Not authorized to delete this job')).toBeInTheDocument();
+    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+  });
+
+  it('cancels creating a posting and returns to the list', async () => {
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('Post a New Job'));
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(await screen.findByText('Post a New Job')).toBeInTheDocument();
+    expect(createJob).not.toHaveBeenCalled();
+  });
+
+  it('cancels editing a posting and returns to the list', async () => {
+    render(<RecruiterDashboard onBack={() => {}} />);
+
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByText('Edit Posting'));
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(await screen.findByText('Post a New Job')).toBeInTheDocument();
+    expect(updateJob).not.toHaveBeenCalled();
   });
 });
