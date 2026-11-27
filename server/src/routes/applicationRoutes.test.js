@@ -3,28 +3,34 @@ jest.mock("../middleware/auth", () => (req, res, next) => {
   return next();
 });
 jest.mock("../middleware/requireRole", () => () => (req, res, next) => next());
-jest.mock("../models/Application", () => ({}));
+jest.mock("../models/Application", () => ({
+  findOne: jest.fn(),
+}));
 jest.mock("../models/JobPosting", () => ({
   findById: jest.fn(),
 }));
 jest.mock("../queries/applicationqueries", () => ({
+  cancelApplication: jest.fn(),
   createApplication: jest.fn(),
   declineJobOffer: jest.fn(),
   updateApplicationStatus: jest.fn(),
 }));
 jest.mock("../queries/notificationQueries", () => ({
   createNotification: jest.fn(),
+  createNotificationSafe: jest.fn(),
 }));
 
 const express = require("express");
 const request = require("supertest");
+const Application = require("../models/Application");
 const JobPosting = require("../models/JobPosting");
 const {
+  cancelApplication,
   createApplication,
   declineJobOffer,
   updateApplicationStatus,
 } = require("../queries/applicationqueries");
-const { createNotification } = require("../queries/notificationQueries");
+const { createNotificationSafe } = require("../queries/notificationQueries");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const applicationRoutes = require("./applicationRoutes");
 
@@ -43,6 +49,7 @@ app.use("/applications", applicationRoutes);
 describe("application route notifications", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    createNotificationSafe.mockResolvedValue(null);
     JobPosting.findById.mockReturnValue({
       select: jest.fn().mockResolvedValue(job),
     });
@@ -63,7 +70,7 @@ describe("application route notifications", () => {
       .send({ jobId, resumeId });
 
     expect(response.status).toBe(201);
-    expect(createNotification).toHaveBeenCalledWith({
+    expect(createNotificationSafe).toHaveBeenCalledWith({
       recipient: recruiterId,
       type: "APPLICATION_SUBMITTED",
       title: "New Application Received",
@@ -72,10 +79,11 @@ describe("application route notifications", () => {
       relatedApplication: applicationId,
     });
   });
+
   it("returns a generic error when application submission fails", async () => {
     JobPosting.findById.mockResolvedValue({
       ...job,
-      postedBy: recruiterId
+      postedBy: recruiterId,
     });
 
     createApplication.mockRejectedValueOnce(
@@ -90,15 +98,16 @@ describe("application route notifications", () => {
     expect(response.status).toBe(500);
 
     expect(response.body).toEqual({
-      error: "Server error submitting application."
+      error: "Server error submitting application.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("returns 409 when MongoDB rejects a duplicate application", async () => {
     JobPosting.findById.mockResolvedValue({
       ...job,
-      postedBy: recruiterId
+      postedBy: recruiterId,
     });
 
     const duplicateError = new Error("Duplicate key error");
@@ -114,11 +123,12 @@ describe("application route notifications", () => {
     expect(response.status).toBe(409);
 
     expect(response.body).toEqual({
-      error: "You have already applied for this job."
+      error: "You have already applied for this job.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("returns a generic error when declining an offer fails", async () => {
     declineJobOffer.mockRejectedValueOnce(
       new Error("Internal database connection failed")
@@ -131,11 +141,12 @@ describe("application route notifications", () => {
     expect(response.status).toBe(500);
 
     expect(response.body).toEqual({
-      error: "Server error declining offer."
+      error: "Server error declining offer.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("notifies the recruiter when an applicant declines an offer", async () => {
     const declinedApplication = {
       ...application,
@@ -149,11 +160,33 @@ describe("application route notifications", () => {
       .set("x-test-user-id", applicantId);
 
     expect(response.status).toBe(200);
-    expect(createNotification).toHaveBeenCalledWith({
+    expect(createNotificationSafe).toHaveBeenCalledWith({
       recipient: recruiterId,
       type: "APPLICATION_STATUS",
       title: "Job Offer Declined",
       message: `A candidate declined the offer for "${job.title}" at ${job.company}.`,
+      relatedJob: jobId,
+      relatedApplication: applicationId,
+    });
+  });
+
+  it("notifies the recruiter when an applicant withdraws an application", async () => {
+    Application.findOne.mockResolvedValue(application);
+    cancelApplication.mockResolvedValue(undefined);
+    JobPosting.findById.mockReturnValue({
+      select: jest.fn().mockResolvedValue({ ...job, postedBy: recruiterId }),
+    });
+
+    const response = await request(app)
+      .delete(`/applications/${applicationId}`)
+      .set("x-test-user-id", applicantId);
+
+    expect(response.status).toBe(200);
+    expect(createNotificationSafe).toHaveBeenCalledWith({
+      recipient: recruiterId,
+      type: "APPLICATION_WITHDRAWN",
+      title: "Application Withdrawn",
+      message: `A candidate withdrew their application for "${job.title}" at ${job.company}.`,
       relatedJob: jobId,
       relatedApplication: applicationId,
     });
@@ -168,7 +201,7 @@ describe("application route notifications", () => {
       .send({ status });
 
     expect(response.status).toBe(200);
-    expect(createNotification).toHaveBeenCalledWith({
+    expect(createNotificationSafe).toHaveBeenCalledWith({
       recipient: applicantId,
       type: "APPLICATION_STATUS",
       title: `Application Status Updated: ${status}`,
@@ -178,7 +211,7 @@ describe("application route notifications", () => {
     });
   });
 
-  it("notifies the applicant when they receive an interview invitation", async () => {
+  it("notifies the applicant with a dedicated Interview Invitation when status becomes Interview", async () => {
     const status = APPLICATION_STATUSES.INTERVIEW;
     updateApplicationStatus.mockResolvedValue({ ...application, status });
 
@@ -187,11 +220,11 @@ describe("application route notifications", () => {
       .send({ status });
 
     expect(response.status).toBe(200);
-    expect(createNotification).toHaveBeenCalledWith({
+    expect(createNotificationSafe).toHaveBeenCalledWith({
       recipient: applicantId,
-      type: "APPLICATION_STATUS",
-      title: `Application Status Updated: ${status}`,
-      message: `Your application for "${job.title}" at ${job.company} is now "${status}".`,
+      type: "INTERVIEW_INVITATION",
+      title: "Interview Invitation",
+      message: `You have been invited to an interview for "${job.title}" at ${job.company}!`,
       relatedJob: jobId,
       relatedApplication: applicationId,
     });
@@ -206,7 +239,7 @@ describe("application route notifications", () => {
       .send({ status });
 
     expect(response.status).toBe(200);
-    expect(createNotification).toHaveBeenCalledWith({
+    expect(createNotificationSafe).toHaveBeenCalledWith({
       recipient: applicantId,
       type: "APPLICATION_STATUS",
       title: `Application Status Updated: ${status}`,

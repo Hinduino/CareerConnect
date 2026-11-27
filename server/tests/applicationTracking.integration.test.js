@@ -549,9 +549,9 @@ describe('POST /api/applications (role check)', () => {
                 .post('/api/applications')
                 .set('test_user_id', applicantId)
                 .send({ jobId, resumeId: 'invalid-id' });
-
+            
             expect(response.status).toBe(400);
-            expect(response.body.error).toBe('Invalid resume ID');
+            expect(response.body.error).toBe('Selected resume could not be found.');
             expect(await Application.countDocuments({
                 applicant: applicantId,
                 job: jobId

@@ -31,6 +31,10 @@ const applicationSchema = new mongoose.Schema(
     cancelledAt: {
       type: Date,
       default: null,
+    },
+    interviewDate: { 
+      type: Date, 
+      default: null,
     }
   },
   { timestamps: true }

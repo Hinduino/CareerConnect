@@ -8,11 +8,21 @@ import JobPostingForm from './JobPostingForm';
 import ApplicantProfilePanel from './ApplicantProfilePanel';
 
 const APPLICATION_STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
+const LOCKED_FROM_EARLY_STAGES = new Set(['Interview', 'Offered', 'Rejected']);
+const EARLY_STAGES = new Set(['Applied', 'Under Review']);
+
+function getAvailableStatusOptions(currentStatus) {
+  if (LOCKED_FROM_EARLY_STAGES.has(currentStatus)) {
+    return APPLICATION_STATUS_OPTIONS.filter((status) => !EARLY_STAGES.has(status));
+  }
+  return APPLICATION_STATUS_OPTIONS;
+}
 
 // The resume, status, and profile action cells shared by both application
 // tables (the per-job view and the all-applications overview).
 function ApplicationActionCells({ application, onDownloadResume, onStatusChange, onViewProfile }) {
   const applicantName = application.applicant?.name || 'Applicant';
+  const availableOptions = getAvailableStatusOptions(application.status);
 
   return (
     <>
@@ -30,13 +40,18 @@ function ApplicationActionCells({ application, onDownloadResume, onStatusChange,
         <select
           className="recruiter-status-select"
           value={application.status}
-          onChange={(e) => onStatusChange(application._id, e.target.value)}
+          onChange={(e) => onStatusChange(application, e.target.value)}
           aria-label={`Application status for ${applicantName}`}
         >
-          {APPLICATION_STATUS_OPTIONS.map((status) => (
+          {availableOptions.map((status) => (
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
+        {application.status === 'Interview' && application.interviewDate && (
+          <div style={{ fontSize: '0.75rem', color: '#7c3aed', marginTop: '4px', fontWeight: '500' }}>
+            Scheduled: {new Date(application.interviewDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>
+        )}
       </td>
 
       <td>
@@ -51,6 +66,17 @@ function ApplicationActionCells({ application, onDownloadResume, onStatusChange,
       </td>
     </>
   );
+}
+
+// Loads one posting's applications and tags each with the job it belongs to.
+// Kept outside the component so the loading effect does not nest functions too deeply (SonarCloud S2004).
+async function fetchApplicationsWithJob(token, job) {
+  const jobApplications = await fetchJobApplications(token, job._id);
+  return jobApplications.map((application) => ({
+    ...application,
+    jobTitle: job.title,
+    jobCompany: job.company,
+  }));
 }
 
 function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null }) {
@@ -70,8 +96,11 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
   const [applicationsError, setApplicationsError] = useState('');
   const [applicationSearch, setApplicationSearch] = useState('');
   const [applicationStatusFilter, setApplicationStatusFilter] = useState('All');
-  // Application whose applicant profile is open in the dialog, if any.
   const [profileApplicationId, setProfileApplicationId] = useState(null);
+
+  // Interview scheduling modal state
+  const [interviewTarget, setInterviewTarget] = useState(null);
+  const [interviewDateTime, setInterviewDateTime] = useState('');
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -92,50 +121,43 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
     };
     loadJobs();
   }, [token, refreshToken]);
+
   useEffect(() => {
-  if (currentView !== 'recruiter-applications' || !token) return;
+    if (currentView !== 'recruiter-applications' || !token) return;
 
-  let cancelled = false;
+    let cancelled = false;
 
-  const loadAllApplications = async () => {
-    setAllApplicationsLoading(true);
-    setAllApplicationsError('');
+    const loadAllApplications = async () => {
+      setAllApplicationsLoading(true);
+      setAllApplicationsError('');
 
-    try {
-      const recruiterJobs = await fetchMyJobs(token);
+      try {
+        const recruiterJobs = await fetchMyJobs(token);
 
-      const applicationGroups = await Promise.all(
-        recruiterJobs.map(async (job) => {
-          const jobApplications = await fetchJobApplications(token, job._id);
+        const applicationGroups = await Promise.all(
+          recruiterJobs.map((job) => fetchApplicationsWithJob(token, job))
+        );
 
-          return jobApplications.map((application) => ({
-            ...application,
-            jobTitle: job.title,
-            jobCompany: job.company,
-          }));
-        })
-      );
-
-      if (!cancelled) {
-        setAllRecruiterApplications(applicationGroups.flat());
+        if (!cancelled) {
+          setAllRecruiterApplications(applicationGroups.flat());
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAllApplicationsError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setAllApplicationsLoading(false);
+        }
       }
-    } catch (err) {
-      if (!cancelled) {
-        setAllApplicationsError(err.message);
-      }
-    } finally {
-      if (!cancelled) {
-        setAllApplicationsLoading(false);
-      }
-    }
-  };
+    };
 
-  loadAllApplications();
+    loadAllApplications();
 
-  return () => {
-    cancelled = true;
-  };
-}, [currentView, token, refreshToken]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentView, token, refreshToken]);
 
   useEffect(() => {
     if (!selectedApplicationId || currentView !== 'recruiter-applications') return;
@@ -157,7 +179,6 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
     setEditingJob(null);
   };
 
-  // Load applications for the selected job posting.
   const handleViewApplications = async (job) => {
     setSelectedJob(job);
     setApplications([]);
@@ -174,36 +195,57 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
       setApplicationsLoading(false);
     }
   };
-  // Update an applicant's status and refresh the displayed status.
-  const handleStatusChange = async (applicationId, newStatus) => {
+
+  const submitStatusChange = async (applicationId, newStatus, interviewDate = null) => {
     setApplicationsError('');
+    setAllApplicationsError('');
     try {
       const result = await updateApplicationStatus(
         token,
         applicationId,
-        newStatus
+        newStatus,
+        interviewDate
       );
 
-      setApplications((currentApplications) =>
-        currentApplications.map((application) =>
-          application._id === applicationId
-            ? { ...application, status: result.application.status }
-            : application
-        )
-      );
-      setAllRecruiterApplications((currentApplications) =>
-        currentApplications.map((application) =>
-          application._id === applicationId
-            ? { ...application, status: result.application.status }
-            : application
-        )
-      );
+      const applyPatch = (application) =>
+        application._id === applicationId
+          ? {
+              ...application,
+              status: result.application.status,
+              interviewDate: result.application.interviewDate || null,
+            }
+          : application;
+
+      setApplications((currentApplications) => currentApplications.map(applyPatch));
+      setAllRecruiterApplications((currentApplications) => currentApplications.map(applyPatch));
     } catch (err) {
       setApplicationsError(err.message);
+      setAllApplicationsError(err.message);
     }
   };
-  // Fetch the resume attached to an application and open/download it. Can't
-  // rely on a plain <a href> since the request needs an Authorization header.
+
+  const handleStatusChange = async (application, newStatus) => {
+    if (newStatus === 'Interview') {
+      setInterviewTarget(application);
+      setInterviewDateTime(
+        application.interviewDate
+          ? new Date(application.interviewDate).toISOString().slice(0, 16)
+          : ''
+      );
+      return;
+    }
+    await submitStatusChange(application._id, newStatus, null);
+  };
+
+  const handleConfirmInterview = async (e) => {
+    e.preventDefault();
+    if (!interviewTarget) return;
+    const isoDate = interviewDateTime ? new Date(interviewDateTime).toISOString() : null;
+    await submitStatusChange(interviewTarget._id, 'Interview', isoDate);
+    setInterviewTarget(null);
+    setInterviewDateTime('');
+  };
+
   const handleDownloadResume = async (application) => {
     try {
       const blobUrl = await fetchApplicationResumeBlobUrl(token, application._id, { download: true });
@@ -213,7 +255,6 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
     }
   };
 
-  // Delete a job posting after recruiter confirmation.
   const handleDelete = async (job) => {
     if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) {
       return;
@@ -229,6 +270,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
       setError(err.message);
     }
   };
+
   const filteredRecruiterApplications = allRecruiterApplications.filter(
     (application) => {
       const search = applicationSearch.toLowerCase();
@@ -248,6 +290,10 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
       return matchesSearch && matchesStatus;
     }
   );
+
+  const showAllApplicationsTable =
+    !allApplicationsLoading && !allApplicationsError && allRecruiterApplications.length > 0;
+
   return (
     <main className="profile-page recruiter-dashboard">
       <div className="profile-container">
@@ -321,6 +367,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
             </div>
           </>
         )}
+
         {currentView === 'recruiter-applications' && mode === 'list' && (
           <section className="recruiter-applications-overview">
             <h2>Applications</h2>
@@ -347,13 +394,16 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
             </div>
             {allApplicationsLoading ? (
               <p>Loading applications...</p>
-            ) : allApplicationsError ? (
+            ) : null}
+            {!allApplicationsLoading && allApplicationsError ? (
               <p role="alert" className="resume-error">
                 {allApplicationsError}
               </p>
-            ) : allRecruiterApplications.length === 0 ? (
+            ) : null}
+            {!allApplicationsLoading && !allApplicationsError && allRecruiterApplications.length === 0 ? (
               <p>No applications received yet.</p>
-            ) : (
+            ) : null}
+            {showAllApplicationsTable ? (
               <div className="applications-table-wrapper">
                 <table className="applications-table recruiter-applications-table">
                   <thead>
@@ -396,9 +446,10 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </section>
         )}
+
         {mode === 'applications' && selectedJob && (
           <section>
             <h2>Applications for {selectedJob.title}</h2>
@@ -470,6 +521,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
             )}
           </section>
         )}
+
         {mode === 'create' && (
           <JobPostingForm
             submitLabel="Post Job"
@@ -489,11 +541,83 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
             }}
           />
         )}
+
         {profileApplicationId && (
           <ApplicantProfilePanel
             applicationId={profileApplicationId}
             onClose={() => setProfileApplicationId(null)}
           />
+        )}
+
+        {interviewTarget && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+          >
+            <form
+              onSubmit={handleConfirmInterview}
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: '10px',
+                maxWidth: '420px',
+                width: '90%',
+                padding: '24px',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)',
+              }}
+            >
+              <h3 style={{ margin: '0 0 8px 0' }}>Schedule Interview</h3>
+              <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.875rem' }}>
+                Choose the interview date and time for{' '}
+                <strong>{interviewTarget.applicant?.name || 'this candidate'}</strong>.
+              </p>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  htmlFor="dashboard-interview-datetime"
+                  style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px' }}
+                >
+                  Interview Date &amp; Time *
+                </label>
+                <input
+                  id="dashboard-interview-datetime"
+                  type="datetime-local"
+                  required
+                  value={interviewDateTime}
+                  onChange={(e) => setInterviewDateTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setInterviewTarget(null);
+                    setInterviewDateTime('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  Confirm &amp; Send Invite
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </div>
     </main>

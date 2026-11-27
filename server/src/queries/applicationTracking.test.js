@@ -58,8 +58,14 @@ describe("SCRUM-106 application queries", () => {
   });
 
   describe("updateApplicationStatus (PR #50)", () => {
-    it.each([APPLICATION_STATUSES.APPLIED, APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.OFFERED, APPLICATION_STATUSES.REJECTED])(
-      "lets the owning recruiter set \"%s\"",
+    it.each([
+      APPLICATION_STATUSES.APPLIED,
+      APPLICATION_STATUSES.UNDER_REVIEW,
+      APPLICATION_STATUSES.INTERVIEW,
+      APPLICATION_STATUSES.OFFERED,
+      APPLICATION_STATUSES.REJECTED,
+    ])(
+      'lets the owning recruiter set "%s"',
       async (status) => {
         const application = fakeApplication(APPLICATION_STATUSES.APPLIED);
         Application.findById.mockResolvedValue(application);
@@ -84,17 +90,17 @@ describe("SCRUM-106 application queries", () => {
     );
 
     it("rejects 'Cancelled', which only the system should set", async () => {
-      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.CANCELLED)).rejects.toThrow(
-        "Invalid application status."
-      );
+      await expect(
+        updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.CANCELLED)
+      ).rejects.toThrow("Invalid application status.");
     });
 
     it("throws when the application does not exist", async () => {
       Application.findById.mockResolvedValue(null);
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)).rejects.toThrow(
-        "Application not found."
-      );
+      await expect(
+        updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)
+      ).rejects.toThrow("Application not found.");
     });
 
     it("refuses a recruiter who does not own the job, without saving", async () => {
@@ -102,9 +108,9 @@ describe("SCRUM-106 application queries", () => {
       Application.findById.mockResolvedValue(application);
       JobPosting.findById.mockResolvedValue({ postedBy: otherRecruiterId });
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.REJECTED)).rejects.toThrow(
-        "Not authorized to update this application."
-      );
+      await expect(
+        updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.REJECTED)
+      ).rejects.toThrow("Not authorized to update this application.");
       expect(application.status).toBe(APPLICATION_STATUSES.APPLIED);
       expect(application.save).not.toHaveBeenCalled();
     });
@@ -113,9 +119,9 @@ describe("SCRUM-106 application queries", () => {
       Application.findById.mockResolvedValue(fakeApplication(APPLICATION_STATUSES.APPLIED));
       JobPosting.findById.mockResolvedValue(null);
 
-      await expect(updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)).rejects.toThrow(
-        "Not authorized to update this application."
-      );
+      await expect(
+        updateApplicationStatus(recruiterId, applicationId, APPLICATION_STATUSES.INTERVIEW)
+      ).rejects.toThrow("Not authorized to update this application.");
     });
 
     // Known bug: "Offer Declined" should only come from the candidate (PR #51).
@@ -143,8 +149,14 @@ describe("SCRUM-106 application queries", () => {
       expect(application.save).toHaveBeenCalledTimes(1);
     });
 
-    it.each([APPLICATION_STATUSES.APPLIED, APPLICATION_STATUSES.UNDER_REVIEW, APPLICATION_STATUSES.INTERVIEW, APPLICATION_STATUSES.REJECTED, APPLICATION_STATUSES.OFFER_DECLINED])(
-      "refuses when the status is \"%s\", without saving",
+    it.each([
+      APPLICATION_STATUSES.APPLIED,
+      APPLICATION_STATUSES.UNDER_REVIEW,
+      APPLICATION_STATUSES.INTERVIEW,
+      APPLICATION_STATUSES.REJECTED,
+      APPLICATION_STATUSES.OFFER_DECLINED,
+    ])(
+      'refuses when the status is "%s", without saving',
       async (status) => {
         const application = fakeApplication(status);
         Application.findOne.mockResolvedValue(application);
@@ -160,41 +172,45 @@ describe("SCRUM-106 application queries", () => {
     it("throws when the application isn't found for this applicant", async () => {
       Application.findOne.mockResolvedValue(null);
 
-      await expect(declineJobOffer(applicationId, applicantId)).rejects.toThrow("Application not found.");
+      await expect(declineJobOffer(applicationId, applicantId)).rejects.toThrow(
+        "Application not found."
+      );
     });
   });
+
   describe("getMyApplications (PR #50)", () => {
-  it("loads the applicant's applications newest first, without the resume file", async () => {
-    const rows = [{ _id: "a2" }, { _id: "a1" }];
-    const query = chainableQuery(rows);
-    Application.find.mockReturnValue(query);
+    it("loads the applicant's applications newest first, without the resume file", async () => {
+      const rows = [{ _id: "a2" }, { _id: "a1" }];
+      const query = chainableQuery(rows);
+      Application.find.mockReturnValue(query);
 
-    const result = await getMyApplications(applicantId);
+      const result = await getMyApplications(applicantId);
 
-    expect(result).toBe(rows);
-    expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
-    expect(query.select).toHaveBeenCalledWith("_id job status createdAt updatedAt");
-    expect(query.populate).toHaveBeenCalledWith("job", "title company location category");
-    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
-  });
-});
-  describe("getApplicationHistoryByUser (PR #51)", () => {
-  it("loads the applicant's history newest first with full job details", async () => {
-    const rows = [{ _id: "a1" }];
-    const query = chainableQuery(rows);
-    Application.find.mockReturnValue(query);
-
-    const result = await getApplicationHistoryByUser(applicantId);
-
-    expect(result).toBe(rows);
-    expect(Application.find).toHaveBeenCalledWith({
-      applicant: new mongoose.Types.ObjectId(applicantId)
+      expect(result).toBe(rows);
+      expect(Application.find).toHaveBeenCalledWith({ applicant: applicantId });
+      expect(query.select).toHaveBeenCalledWith("_id job status interviewDate createdAt updatedAt");
+      expect(query.populate).toHaveBeenCalledWith("job", "title company location category");
+      expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
     });
-    expect(query.populate).toHaveBeenCalledWith(
-      "job",
-      "title company location category description requirements"
-    );
-    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
   });
-});
+
+  describe("getApplicationHistoryByUser (PR #51)", () => {
+    it("loads the applicant's history newest first with full job details", async () => {
+      const rows = [{ _id: "a1" }];
+      const query = chainableQuery(rows);
+      Application.find.mockReturnValue(query);
+
+      const result = await getApplicationHistoryByUser(applicantId);
+
+      expect(result).toBe(rows);
+      expect(Application.find).toHaveBeenCalledWith({
+        applicant: new mongoose.Types.ObjectId(applicantId),
+      });
+      expect(query.populate).toHaveBeenCalledWith(
+        "job",
+        "title company location category description requirements"
+      );
+      expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    });
+  });
 });

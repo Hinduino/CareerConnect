@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE =
+  globalThis.process?.env?.VITE_API_URL || 'http://localhost:3000/api';
 
 async function parseJsonSafely(response) {
   try {
@@ -8,69 +9,62 @@ async function parseJsonSafely(response) {
   }
 }
 
-function authHeaders(token) {
+function authHeaders(token, hasJsonBody = false) {
   return {
-    'Content-Type': 'application/json',
+    ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
     Authorization: `Bearer ${token}`,
   };
 }
 
-export async function fetchRecruiterPostings(token) {
-  const res = await fetch(`${API_BASE}/jobs/mine`, {
-    headers: { Authorization: `Bearer ${token}` },
+async function requestJson(path, { token, method = 'GET', body, fallbackError }) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: authHeaders(token, body !== undefined),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const data = await parseJsonSafely(res);
   if (!res.ok) {
-    throw new Error(data?.error || 'Failed to fetch postings');
+    throw new Error(data?.error || fallbackError);
   }
   return data;
 }
 
-export async function createJobPosting(token, jobData) {
-  const res = await fetch(`${API_BASE}/jobs`, {
+export function fetchRecruiterPostings(token) {
+  return requestJson('/jobs/mine', {
+    token,
+    fallbackError: 'Failed to fetch postings',
+  });
+}
+
+export function createJobPosting(token, jobData) {
+  return requestJson('/jobs', {
+    token,
     method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(jobData),
+    body: jobData,
+    fallbackError: 'Failed to create posting',
   });
-  const data = await parseJsonSafely(res);
-  if (!res.ok) {
-    throw new Error(data?.error || 'Failed to create posting');
-  }
-  return data;
 }
 
-export async function updateJobPosting(token, id, jobData) {
-  const res = await fetch(`${API_BASE}/jobs/${id}`, {
+export function updateJobPosting(token, id, jobData) {
+  return requestJson(`/jobs/${id}`, {
+    token,
     method: 'PUT',
-    headers: authHeaders(token),
-    body: JSON.stringify(jobData),
+    body: jobData,
+    fallbackError: 'Failed to update posting',
   });
-  const data = await parseJsonSafely(res);
-  if (!res.ok) {
-    throw new Error(data?.error || 'Failed to update posting');
-  }
-  return data;
 }
 
-export async function toggleArchiveJobPosting(token, id) {
-  const res = await fetch(`${API_BASE}/jobs/${id}/archive`, {
+export function toggleArchiveJobPosting(token, id) {
+  return requestJson(`/jobs/${id}/archive`, {
+    token,
     method: 'PATCH',
-    headers: authHeaders(token),
+    fallbackError: 'Failed to toggle archive status',
   });
-  const data = await parseJsonSafely(res);
-  if (!res.ok) {
-    throw new Error(data?.error || 'Failed to toggle archive status');
-  }
-  return data;
 }
 
-export async function fetchApplicantsForJob(token, jobId) {
-  const res = await fetch(`${API_BASE}/applications/jobs/${jobId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+export function fetchApplicantsForJob(token, jobId) {
+  return requestJson(`/applications/jobs/${jobId}`, {
+    token,
+    fallbackError: 'Failed to fetch applicants',
   });
-  const data = await parseJsonSafely(res);
-  if (!res.ok) {
-    throw new Error(data?.error || 'Failed to fetch applicants');
-  }
-  return data;
 }

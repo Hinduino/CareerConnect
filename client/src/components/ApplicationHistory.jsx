@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { fetchApplicationHistory, cancelApplication, declineJobOffer } from '../api/applicationApi';
 import ApplicationAnalytics from './ApplicationAnalytics';
 
-
 const STATUS_STYLES = {
   Applied: { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' },
   'under review': { bg: '#fef3c7', text: '#b45309', border: '#fde68a' },
@@ -21,6 +20,16 @@ function getStatusStyle(status) {
         text: '#475569',
         border: '#cbd5e1'
     };
+}
+
+function formatInterviewDateTime(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 function ApplicationHistory({
@@ -139,6 +148,10 @@ const handleCancelApplication = (e, applicationId) =>
     onClearSelectedApplication?.();
   };
 
+  const selectedInterviewText = selectedApp
+    ? formatInterviewDateTime(selectedApp.interviewDate)
+    : null;
+
   return (
     <div style={{ maxWidth: '1100px', margin: '30px auto', padding: '0 20px', fontFamily: 'inherit' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -148,7 +161,7 @@ const handleCancelApplication = (e, applicationId) =>
         </span>
       </div>
 
-    { /* SCRUM-318: Job Seeker Application Analytics */}
+      {/* SCRUM-318: Job Seeker Application Analytics */}
       {!loading && !error && applications.length > 0 && (
         <ApplicationAnalytics applications={applications} />
       )}
@@ -189,6 +202,7 @@ const handleCancelApplication = (e, applicationId) =>
                 const conf = getStatusStyle(app.status);
                 const isOffered = app.status === 'Offered';
                 const canCancel = !['Rejected', 'Offer Declined', 'Cancelled'].includes(app.status);
+                const formattedInterview = formatInterviewDateTime(app.interviewDate);
 
                 return (
                   <tr
@@ -229,6 +243,18 @@ const handleCancelApplication = (e, applicationId) =>
                       >
                         {app.status}
                       </span>
+                      {app.status === 'Interview' && formattedInterview && (
+                        <div
+                          style={{
+                            marginTop: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            color: '#6d28d9',
+                          }}
+                        >
+                          Interview: {formattedInterview}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {isOffered && (
@@ -328,6 +354,21 @@ const handleCancelApplication = (e, applicationId) =>
               <p style={{ margin: '0 0 4px 0' }}>
                 <strong>Applied On:</strong> {new Date(selectedApp.createdAt).toLocaleDateString()}
               </p>
+              {selectedApp.status === 'Interview' && selectedInterviewText && (
+                <p
+                  style={{
+                    margin: '8px 0 0 0',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: '#ede9fe',
+                    color: '#5b21b6',
+                    border: '1px solid #ddd6fe',
+                    fontWeight: '600',
+                  }}
+                >
+                  Interview Scheduled: {selectedInterviewText}
+                </p>
+              )}
             </div>
 
             <div style={{ marginTop: '16px' }}>

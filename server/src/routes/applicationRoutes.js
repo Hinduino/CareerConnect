@@ -17,13 +17,21 @@ const {
 } = require('../queries/applicationqueries');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
-const { createNotification } = require('../queries/notificationQueries');
+const { createNotificationSafe } = require('../queries/notificationQueries');
 
-function isValidObjectId(value) {
-  return typeof value === 'string' &&
-    /^[a-fA-F0-9]{24}$/.test(value) &&
-    mongoose.isValidObjectId(value);
+const OBJECT_ID_HEX_PATTERN = /^[0-9a-fA-F]{24}$/;
+
+function parseValidObjectIdString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!OBJECT_ID_HEX_PATTERN.test(trimmed) || !mongoose.isValidObjectId(trimmed)) {
+    return null;
+  }
+  return new mongoose.Types.ObjectId(trimmed).toHexString();
 }
+
 // ==========================================
 // JOB SEEKER / APPLICANT ROUTES (SCRUM-309 & SCRUM-318)
 // ==========================================
@@ -40,14 +48,15 @@ router.get('/history', requireAuth, requireRole('job_seeker'), async (req, res) 
 
 router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!isValidObjectId(id)) {
+    const id = parseValidObjectIdString(req.params.id);
+    if (!id) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
+
     const updated = await declineJobOffer(id, req.user.id);
     const job = await JobPosting.findById(updated.job);
     if (job && job.postedBy) {
-      await createNotification({
+      await createNotificationSafe({
         recipient: job.postedBy,
         type: 'APPLICATION_STATUS',
         title: 'Job Offer Declined',
@@ -62,14 +71,14 @@ router.patch('/:id/decline-offer', requireAuth, requireRole('job_seeker'), async
     console.error('Error declining offer:', err.message);
 
     if (
-        err.message === 'Application not found.' ||
-        err.message === 'Cannot decline an offer unless one has been extended.'
+      err.message === 'Application not found.' ||
+      err.message === 'Cannot decline an offer unless one has been extended.'
     ) {
-        return res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: err.message });
     }
 
     res.status(500).json({ error: 'Server error declining offer.' });
-}
+  }
 });
 
 router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
@@ -84,11 +93,12 @@ router.get('/my', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
 router.get('/status/:jobId', requireAuth, async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.jobId)) {
+    const jobId = parseValidObjectIdString(req.params.jobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
-    const status = await getApplicationStatus(req.user.id, req.params.jobId);
+    const status = await getApplicationStatus(req.user.id, jobId);
     res.status(200).json(status);
   } catch (error) {
     console.error(error);
@@ -98,18 +108,21 @@ router.get('/status/:jobId', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    const { jobId, resumeId } = req.body;
+    const rawJobId = typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '';
+    const rawResumeId = typeof req.body?.resumeId === 'string' ? req.body.resumeId.trim() : '';
 
-    if (!jobId || !resumeId) {
+    if (!rawJobId || !rawResumeId) {
       return res.status(400).json({ error: 'Job ID and resume are required.' });
     }
 
-    if (!isValidObjectId(jobId)) {
+    const jobId = parseValidObjectIdString(rawJobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
-    if (!isValidObjectId(resumeId)) {
-      return res.status(400).json({ error: 'Invalid resume ID' });
+    const resumeId = parseValidObjectIdString(rawResumeId);
+    if (!resumeId) {
+      return res.status(400).json({ error: 'Selected resume could not be found.' });
     }
 
     const job = await JobPosting.findById(jobId);
@@ -125,9 +138,8 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
     const application = await createApplication(req.user.id, jobId, resumeId);
 
-    // SCRUM-293: Notify the recruiter who posted the job about the new application
     if (job.postedBy) {
-      await createNotification({
+      await createNotificationSafe({
         recipient: job.postedBy,
         type: 'APPLICATION_SUBMITTED',
         title: 'New Application Received',
@@ -154,7 +166,7 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
       error.message === 'You have already applied for this job.'
     ) {
       return res.status(409).json({
-        error: 'You have already applied for this job.'
+        error: 'You have already applied for this job.',
       });
     }
     if (
@@ -169,11 +181,32 @@ router.post('/', requireAuth, requireRole('job_seeker'), async (req, res) => {
 
 router.delete('/:applicationId', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    await cancelApplication(req.user.id, req.params.applicationId);
+    const existingApplication = await Application.findOne({
+      _id: String(applicationId),
+      applicant: String(req.user.id),
+    });
+
+    await cancelApplication(req.user.id, applicationId);
+
+    if (existingApplication) {
+      const job = await JobPosting.findById(existingApplication.job).select('title company postedBy');
+      if (job && job.postedBy) {
+        await createNotificationSafe({
+          recipient: job.postedBy,
+          type: 'APPLICATION_WITHDRAWN',
+          title: 'Application Withdrawn',
+          message: `A candidate withdrew their application for "${job.title}" at ${job.company}.`,
+          relatedJob: job._id,
+          relatedApplication: existingApplication._id,
+        });
+      }
+    }
+
     res.status(200).json({ message: 'Application cancelled successfully.' });
   } catch (error) {
     if (error.message === 'Application not found.') {
@@ -190,11 +223,12 @@ router.delete('/:applicationId', requireAuth, requireRole('job_seeker'), async (
 
 router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.jobId)) {
+    const jobId = parseValidObjectIdString(req.params.jobId);
+    if (!jobId) {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
 
-    const job = await JobPosting.findById(req.params.jobId);
+    const job = await JobPosting.findById(jobId);
     if (!job) return res.status(404).json({ error: 'Job not found' });
     if (job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({ error: 'You can only view applications for your own job postings' });
@@ -210,16 +244,14 @@ router.get('/jobs/:jobId', requireAuth, requireRole('recruiter'), async (req, re
   }
 });
 
-// Lets a recruiter review an applicant's full professional profile directly
-// from one of their applications. Access is only granted through applications
-// to the recruiter's own job postings.
 router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findById(applicationId);
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }
@@ -234,7 +266,6 @@ router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), a
       return res.status(404).json({ error: 'Applicant not found' });
     }
 
-    // Resume metadata only; the bytes stay behind the dedicated resume route.
     const resume = application.resume && application.resume.originalName
       ? {
           originalName: application.resume.originalName,
@@ -261,11 +292,12 @@ router.get('/:applicationId/applicant', requireAuth, requireRole('recruiter'), a
 
 router.get('/:applicationId/resume', requireAuth, async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const application = await Application.findById(req.params.applicationId).select('+resume.data');
+    const application = await Application.findById(applicationId).select('+resume.data');
     if (!application) {
       return res.status(404).json({ error: 'Application not found' });
     }
@@ -296,26 +328,44 @@ router.get('/:applicationId/resume', requireAuth, async (req, res) => {
 
 router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    if (!isValidObjectId(req.params.applicationId)) {
+    const applicationId = parseValidObjectIdString(req.params.applicationId);
+    if (!applicationId) {
       return res.status(400).json({ error: 'Invalid application ID' });
     }
 
-    const { status } = req.body;
+    const { status, interviewDate } = req.body;
 
     const application = await updateApplicationStatus(
       req.user.id,
-      req.params.applicationId,
-      status
+      applicationId,
+      status,
+      interviewDate
     );
 
-    // SCRUM-293: Notify the applicant that their application status changed
     const job = await JobPosting.findById(application.job).select('title company');
     const jobLabel = job ? `"${job.title}" at ${job.company}` : 'your job application';
-    await createNotification({
+    const isInterview = application.status === 'Interview';
+    const formattedInterviewDate = application.interviewDate
+      ? new Date(application.interviewDate).toLocaleString('en-US', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+      : null;
+
+    let interviewMessage = `You have been invited to an interview for ${jobLabel}!`;
+    if (formattedInterviewDate) {
+      interviewMessage = `You have been invited to an interview for ${jobLabel} scheduled for ${formattedInterviewDate}!`;
+    }
+
+    await createNotificationSafe({
       recipient: application.applicant,
-      type: 'APPLICATION_STATUS',
-      title: `Application Status Updated: ${application.status}`,
-      message: `Your application for ${jobLabel} is now "${application.status}".`,
+      type: isInterview ? 'INTERVIEW_INVITATION' : 'APPLICATION_STATUS',
+      title: isInterview
+        ? 'Interview Invitation'
+        : `Application Status Updated: ${application.status}`,
+      message: isInterview
+        ? interviewMessage
+        : `Your application for ${jobLabel} is now "${application.status}".`,
       relatedJob: application.job,
       relatedApplication: application._id,
     });
@@ -325,11 +375,16 @@ router.patch('/:applicationId/status', requireAuth, requireRole('recruiter'), as
       application: {
         _id: application._id,
         status: application.status,
+        interviewDate: application.interviewDate || null,
         updatedAt: application.updatedAt,
       },
     });
   } catch (error) {
-    if (error.message === 'Invalid application status.') {
+    if (
+      error.message === 'Invalid application status.' ||
+      error.message === 'Invalid interview date.' ||
+      error.message.startsWith('Cannot move application back')
+    ) {
       return res.status(400).json({ error: error.message });
     }
 

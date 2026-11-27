@@ -323,7 +323,6 @@ describe('Application submission and management', () => {
             .set('test_user_id', otherRecruiterId);
         expect(otherRecruiterDownload.status).toBe(403);
     });
-});
 
     it('rejects application submission with invalid job ID', async () => {
         const applicantId = await createUser();
@@ -333,7 +332,7 @@ describe('Application submission and management', () => {
             .post('/api/applications')
             .set('test_user_id', applicantId)
             .send({ jobId: 'invalid-id', resumeId });
-        
+
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Invalid job ID');
     });
@@ -344,7 +343,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get('/api/applications/status/invalid-id')
             .set('test_user_id', applicantId);
-        
+
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Invalid job ID');
     });
@@ -355,7 +354,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .delete('/api/applications/invalid-id')
             .set('test_user_id', applicantId);
-        
+
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Invalid application ID');
     });
@@ -366,7 +365,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get('/api/applications/invalid-id/resume')
             .set('test_user_id', applicantId);
-        
+
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Invalid application ID');
     });
@@ -388,7 +387,7 @@ describe('Application submission and management', () => {
         const download = await request(app)
             .get(`/api/applications/${applicationId}/resume`)
             .set('test_user_id', otherUserId);
-        
+
         expect(download.status).toBe(403);
         expect(download.body.error).toBe('You do not have permission to access this resume');
     });
@@ -400,7 +399,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .delete(`/api/applications/${fakeId}`)
             .set('test_user_id', applicantId);
-        
+
         expect(response.status).toBe(404);
         expect(response.body.error).toBe('Application not found.');
     });
@@ -412,7 +411,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get(`/api/applications/${fakeId}/resume`)
             .set('test_user_id', applicantId);
-        
+
         expect(response.status).toBe(404);
         expect(response.body.error).toBe('Application not found');
     });
@@ -434,7 +433,7 @@ describe('Application submission and management', () => {
             .patch(`/api/applications/${applicationId}/status`)
             .set('test_user_id', recruiterId)
             .send({ status: 'Under Review' });
-        
+
         expect(updateResponse.status).toBe(200);
         expect(updateResponse.body.application.status).toBe('Under Review');
     });
@@ -446,7 +445,7 @@ describe('Application submission and management', () => {
             .patch('/api/applications/invalid-id/status')
             .set('test_user_id', recruiterId)
             .send({ status: 'Under Review' });
-        
+
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Invalid application ID');
     });
@@ -465,7 +464,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get(`/api/applications/jobs/${jobId}`)
             .set('test_user_id', recruiterId);
-        
+
         expect(response.status).toBe(200);
         expect(response.body).toHaveLength(1);
         expect(response.body[0].applicant.name).toBe('Test User');
@@ -479,7 +478,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get(`/api/applications/jobs/${jobId}`)
             .set('test_user_id', recruiter2Id);
-        
+
         expect(response.status).toBe(403);
         expect(response.body.error).toContain('can only view applications for your own');
     });
@@ -491,7 +490,7 @@ describe('Application submission and management', () => {
         const response = await request(app)
             .get(`/api/applications/jobs/${fakeId}`)
             .set('test_user_id', recruiterId);
-        
+
         expect(response.status).toBe(404);
         expect(response.body.error).toBe('Job not found');
     });
@@ -514,10 +513,11 @@ describe('Application submission and management', () => {
             .set('test_user_id', applicantId)
             .buffer(true)
             .parse(parseBuffer);
-        
+
         expect(download.status).toBe(200);
         expect(Buffer.compare(download.body, Buffer.from('test'))).toBe(0);
     });
+});
 
 describe('Application notification dashboards', () => {
     it("notifies only the recruiter who owns the posting when an application is submitted", async () => {
@@ -554,6 +554,35 @@ describe('Application notification dashboards', () => {
         expect(otherRecruiterDashboard.body.notifications).toHaveLength(0);
     });
 
+    it('notifies the recruiter when an applicant withdraws their application', async () => {
+        const {
+            recruiterId,
+            applicantId,
+            jobId,
+            applicationId,
+            submissionResponse,
+        } = await submitApplicationForNotificationTests();
+        expect(submissionResponse.status).toBe(201);
+
+        const cancelResponse = await request(app)
+            .delete(`/api/applications/${applicationId}`)
+            .set('test_user_id', applicantId);
+        const recruiterDashboard = await request(app)
+            .get('/api/notifications')
+            .set('test_user_id', recruiterId);
+
+        expect(cancelResponse.status).toBe(200);
+        expect(recruiterDashboard.status).toBe(200);
+        expect(recruiterDashboard.body.notifications).toHaveLength(2);
+        expect(recruiterDashboard.body.notifications[0]).toMatchObject({
+            recipient: recruiterId,
+            type: 'APPLICATION_WITHDRAWN',
+            title: 'Application Withdrawn',
+            relatedJob: jobId,
+            relatedApplication: applicationId,
+        });
+    });
+
     it('notifies the applicant dashboard when the recruiter updates the application status', async () => {
         const {
             recruiterId,
@@ -584,7 +613,7 @@ describe('Application notification dashboards', () => {
         });
     });
 
-    it('notifies the applicant dashboard when the application moves to Interview', async () => {
+    it('notifies the applicant dashboard with an Interview Invitation when the application moves to Interview', async () => {
         const {
             recruiterId,
             applicantId,
@@ -607,9 +636,9 @@ describe('Application notification dashboards', () => {
         expect(dashboard.body.notifications).toHaveLength(1);
         expect(dashboard.body.notifications[0]).toMatchObject({
             recipient: applicantId,
-            type: 'APPLICATION_STATUS',
-            title: 'Application Status Updated: Interview',
-            message: expect.stringContaining('"Interview".'),
+            type: 'INTERVIEW_INVITATION',
+            title: 'Interview Invitation',
+            message: expect.stringContaining('invited to an interview'),
             relatedJob: jobId,
             relatedApplication: applicationId,
         });

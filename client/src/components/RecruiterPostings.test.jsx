@@ -1,6 +1,4 @@
-// SCRUM-278: Unit tests for the recruiter's Job Postings page
-// (PR #52 – SCRUM-310 recruiter posting management: create, edit,
-// archive, applicant counts, and the per-posting applicant drilldown).
+// SCRUM-340 / SCRUM-384: Unit tests for the refactored RecruiterPostings component
 const { fireEvent, render, screen, waitFor, within } = require('@testing-library/react');
 
 jest.mock('../context/AuthContext', () => ({ useAuth: jest.fn() }));
@@ -63,7 +61,6 @@ function rowFor(title) {
   return screen.getByText(title).closest('tr');
 }
 
-// Form fields in order: title, company, location, category, description, requirements
 function formFields() {
   return within(screen.getByRole('heading', { level: 3 }).closest('form')).getAllByRole('textbox');
 }
@@ -86,7 +83,7 @@ describe('RecruiterPostings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useAuth.mockReturnValue({ token: 'token' });
-    window.alert = jest.fn();
+    URL.revokeObjectURL = jest.fn();
     fetchRecruiterPostings.mockResolvedValue([frontend, analyst]);
     fetchApplicantsForJob.mockResolvedValue(frontendApplicants);
   });
@@ -127,8 +124,8 @@ describe('RecruiterPostings', () => {
       expect(within(rowFor('Data Analyst')).getByText('Unarchive')).toBeInTheDocument();
     });
 
-    it('archives a posting and reloads the list', async () => {
-      toggleArchiveJobPosting.mockResolvedValue({});
+    it('archives a posting, shows inline status feedback, and reloads the list', async () => {
+      toggleArchiveJobPosting.mockResolvedValue({ message: 'Job posting archived successfully' });
       fetchRecruiterPostings
         .mockResolvedValueOnce([frontend, analyst])
         .mockResolvedValueOnce([{ ...frontend, isArchived: true }, analyst]);
@@ -138,22 +135,25 @@ describe('RecruiterPostings', () => {
       fireEvent.click(within(rowFor('Frontend Developer')).getByText('Archive'));
 
       await waitFor(() => expect(toggleArchiveJobPosting).toHaveBeenCalledWith('token', 'job-fe'));
+      expect(await screen.findByRole('status')).toHaveTextContent('Job posting archived successfully');
       await waitFor(() =>
         expect(within(rowFor('Frontend Developer')).getByText('Unarchive')).toBeInTheDocument()
       );
-      expect(fetchApplicantsForJob).not.toHaveBeenCalled(); // clicking Archive does not open the row
+      expect(fetchApplicantsForJob).not.toHaveBeenCalled();
     });
 
-    it('tells the recruiter when archiving fails', async () => {
+    it('shows an inline alert banner when archiving fails and allows dismissing it', async () => {
       toggleArchiveJobPosting.mockRejectedValue(new Error('You can only archive your own job postings'));
       render(<RecruiterPostings />);
       await screen.findByText('Frontend Developer');
 
       fireEvent.click(within(rowFor('Frontend Developer')).getByText('Archive'));
 
-      await waitFor(() =>
-        expect(window.alert).toHaveBeenCalledWith('You can only archive your own job postings')
-      );
+      const alertBanner = await screen.findByRole('alert');
+      expect(alertBanner).toHaveTextContent('You can only archive your own job postings');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss message' }));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });
 
@@ -178,10 +178,21 @@ describe('RecruiterPostings', () => {
           category: 'Engineering',
           description: 'Test the app.',
           requirements: 'Attention to detail',
+          dueDate: '',
         })
       );
+      expect(await screen.findByRole('status')).toHaveTextContent('Job posting created successfully.');
       await waitFor(() => expect(screen.queryByText('Create New Job Posting')).not.toBeInTheDocument());
       expect(fetchRecruiterPostings).toHaveBeenCalledTimes(2);
+    });
+
+    it('marks Requirements as required in the posting form', async () => {
+      render(<RecruiterPostings />);
+      await screen.findByText('Frontend Developer');
+
+      fireEvent.click(screen.getByText('+ Create New Job'));
+
+      expect(formFields()[5]).toBeRequired();
     });
 
     it('opens Edit with the posting filled in and saves the changes', async () => {
@@ -207,6 +218,78 @@ describe('RecruiterPostings', () => {
       await waitFor(() =>
         expect(updateJobPosting).toHaveBeenCalledWith('token', 'job-fe', expect.objectContaining({ location: 'Hybrid' }))
       );
+      expect(await screen.findByRole('status')).toHaveTextContent('Job posting updated successfully.');
+    });
+
+    // SCRUM-373: Application Due Date (SCRUM-372) in the create/edit modal and the table
+    describe('application due date', () => {
+      const originalTz = process.env.TZ;
+      const withDueDate = { ...frontend, dueDate: '2026-12-15T00:00:00.000Z' };
+
+      afterEach(() => {
+        process.env.TZ = originalTz;
+      });
+
+      function dueDateField() {
+        return screen.getByLabelText('Application Due Date (Optional)');
+      }
+
+      it('shows the due date the recruiter picked, even in Toronto, and None when there is none', async () => {
+        process.env.TZ = 'America/Toronto';
+        fetchRecruiterPostings.mockResolvedValue([withDueDate, analyst]);
+        const expected = new Date(Date.UTC(2026, 11, 15, 12)).toLocaleDateString(undefined, { timeZone: 'UTC' });
+
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        expect(within(rowFor('Frontend Developer')).getByText(expected)).toBeInTheDocument();
+        expect(within(rowFor('Data Analyst')).getByText('None')).toBeInTheDocument();
+      });
+
+      it('sends the picked due date when creating a posting', async () => {
+        createJobPosting.mockResolvedValue({});
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(screen.getByText('+ Create New Job'));
+        expect(dueDateField()).toHaveAttribute('type', 'date');
+        expect(dueDateField()).not.toBeRequired();
+        const values = ['QA Tester', 'Acme Corp', 'Toronto', 'Engineering', 'Test the app.', 'Attention to detail'];
+        formFields().forEach((field, i) => fireEvent.change(field, { target: { value: values[i] } }));
+        fireEvent.change(dueDateField(), { target: { value: '2026-12-20' } });
+        fireEvent.click(screen.getByText('Save'));
+
+        await waitFor(() =>
+          expect(createJobPosting).toHaveBeenCalledWith('token', expect.objectContaining({ dueDate: '2026-12-20' }))
+        );
+      });
+
+      it('fills in the saved due date when editing and lets the recruiter clear it', async () => {
+        process.env.TZ = 'America/Toronto';
+        fetchRecruiterPostings.mockResolvedValue([withDueDate, analyst]);
+        updateJobPosting.mockResolvedValue({});
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(within(rowFor('Frontend Developer')).getByText('Edit'));
+        expect(dueDateField()).toHaveValue('2026-12-15');
+
+        fireEvent.change(dueDateField(), { target: { value: '' } });
+        fireEvent.click(screen.getByText('Save'));
+
+        await waitFor(() =>
+          expect(updateJobPosting).toHaveBeenCalledWith('token', 'job-fe', expect.objectContaining({ dueDate: '' }))
+        );
+      });
+
+      it('opens Edit with an empty due date for a posting that has none', async () => {
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(within(rowFor('Frontend Developer')).getByText('Edit'));
+
+        expect(dueDateField()).toHaveValue('');
+      });
     });
 
     it('closes the form without saving on Cancel', async () => {
@@ -220,7 +303,7 @@ describe('RecruiterPostings', () => {
       expect(createJobPosting).not.toHaveBeenCalled();
     });
 
-    it('tells the recruiter when saving fails', async () => {
+    it('shows an inline alert banner when saving fails', async () => {
       createJobPosting.mockRejectedValue(new Error('requirements is required'));
       render(<RecruiterPostings />);
       await screen.findByText('Frontend Developer');
@@ -228,19 +311,8 @@ describe('RecruiterPostings', () => {
       fireEvent.click(screen.getByText('+ Create New Job'));
       fireEvent.submit(screen.getByText('Save').closest('form'));
 
-      await waitFor(() => expect(window.alert).toHaveBeenCalledWith('requirements is required'));
+      expect(await screen.findByRole('alert')).toHaveTextContent('requirements is required');
       expect(screen.getByText('Create New Job Posting')).toBeInTheDocument();
-    });
-
-    // Known bug: the form treats Requirements as optional, but the server
-    // rejects postings without requirements, so saving fails with an alert.
-    it.failing('KNOWN BUG: marks Requirements as required, like the server does', async () => {
-      render(<RecruiterPostings />);
-      await screen.findByText('Frontend Developer');
-
-      fireEvent.click(screen.getByText('+ Create New Job'));
-
-      expect(formFields()[5]).toBeRequired();
     });
   });
 
@@ -256,8 +328,7 @@ describe('RecruiterPostings', () => {
     it('can sort oldest first', async () => {
       await openApplicants();
 
-      const [, sortSelect] = within(screen.getByText('Applicants for: Frontend Developer').closest('div').parentElement)
-        .getAllByRole('combobox');
+      const sortSelect = screen.getByLabelText('Sort applicants by date');
       fireEvent.change(sortSelect, { target: { value: 'asc' } });
 
       expect(applicantNames()).toEqual(['Sara Test', 'Omar Lee']);
@@ -265,8 +336,7 @@ describe('RecruiterPostings', () => {
 
     it('filters applicants by status and explains when none match', async () => {
       await openApplicants();
-      const [statusFilter] = within(screen.getByText('Applicants for: Frontend Developer').closest('div').parentElement)
-        .getAllByRole('combobox');
+      const statusFilter = screen.getByLabelText('Filter applicants by status');
 
       fireEvent.change(statusFilter, { target: { value: 'Interview' } });
       expect(applicantNames()).toEqual(['Sara Test']);
@@ -275,7 +345,18 @@ describe('RecruiterPostings', () => {
       expect(screen.getByText('No applicants found matching criteria for this posting.')).toBeInTheDocument();
     });
 
-    it('updates an applicant status, then reloads applicants and counts', async () => {
+    it('filters applicants by application date', async () => {
+      await openApplicants();
+      const dateInput = screen.getByLabelText('Filter applicants by application date');
+
+      fireEvent.change(dateInput, { target: { value: '2026-11-08' } });
+      expect(applicantNames()).toEqual(['Sara Test']);
+
+      fireEvent.change(dateInput, { target: { value: '2026-11-25' } });
+      expect(screen.getByText('No applicants found matching criteria for this posting.')).toBeInTheDocument();
+    });
+
+    it('updates an applicant status, shows status feedback, and reloads counts', async () => {
       updateApplicationStatus.mockResolvedValue({});
       await openApplicants();
       fetchApplicantsForJob.mockResolvedValue([
@@ -286,8 +367,9 @@ describe('RecruiterPostings', () => {
       const omarStatus = within(screen.getByText('Omar Lee').closest('tr')).getByRole('combobox');
       fireEvent.change(omarStatus, { target: { value: 'Under Review' } });
 
-      await waitFor(() => expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review'));
+      await waitFor(() => expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review', null));
       await waitFor(() => expect(omarStatus).toHaveValue('Under Review'));
+      expect(await screen.findByRole('status')).toHaveTextContent('Applicant status updated to "Under Review".');
       expect(fetchRecruiterPostings).toHaveBeenCalledTimes(2);
     });
 
@@ -300,7 +382,7 @@ describe('RecruiterPostings', () => {
       expect(ninaStatus).toHaveValue('Offer Declined');
     });
 
-    it('downloads the chosen applicant’s resume', async () => {
+    it('downloads the chosen applicant’s resume and revokes the object URL', async () => {
       fetchApplicationResumeBlobUrl.mockResolvedValue('blob:resume');
       await openApplicants();
 
@@ -309,6 +391,7 @@ describe('RecruiterPostings', () => {
       await waitFor(() =>
         expect(fetchApplicationResumeBlobUrl).toHaveBeenCalledWith('token', 'app-2', { download: true })
       );
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:resume');
     });
 
     it('closes the drilldown when the open posting is archived', async () => {

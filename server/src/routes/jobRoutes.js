@@ -10,42 +10,67 @@ const {
   getFavoriteJobIds,
   getFavoriteJobs,
 } = require('../queries/favoriteQueries');
+const {
+  getRecruiterPostingsWithCounts,
+  findOwnedJobPosting,
+} = require('../queries/jobQueries');
+const { sendDeadlineRemindersForJob } = require('../services/applicationReminderService');
 
 const REQUIRED_FIELDS = ['title', 'company', 'location', 'category', 'description', 'requirements'];
 
 function validateJobFields(body) {
-    for (const field of REQUIRED_FIELDS) {
-        if (typeof body[field] !== 'string' || !body[field].trim()) {
-            return `${field} is required`;
-        }
+  for (const field of REQUIRED_FIELDS) {
+    if (typeof body[field] !== 'string' || !body[field].trim()) {
+      return `${field} is required`;
     }
-    return null;
+  }
+  return null;
 }
 
 function validateDueDate(dueDate) {
-    if (dueDate === undefined || dueDate === null || dueDate === '') {
-        return null;
-    }
+  if (dueDate === undefined || dueDate === null || dueDate === '') {
+    return null;
+  }
 
-    return Number.isNaN(new Date(dueDate).getTime())
-        ? 'dueDate must be a valid date'
-        : null;
+  return Number.isNaN(new Date(dueDate).getTime())
+    ? 'dueDate must be a valid date'
+    : null;
+}
+
+function parseAndValidateJobPayload(body) {
+  const validationError = validateJobFields(body);
+  if (validationError) {
+    return { error: validationError };
+  }
+
+  const dueDateError = validateDueDate(body.dueDate);
+  if (dueDateError) {
+    return { error: dueDateError };
+  }
+
+  return {
+    data: {
+      title: body.title.trim(),
+      company: body.company.trim(),
+      location: body.location.trim(),
+      category: body.category.trim(),
+      description: body.description.trim(),
+      requirements: body.requirements.trim(),
+    },
+  };
 }
 
 function validateJobId(req, res, next) {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-        return res.status(400).json({ error: 'Invalid job ID' });
-    }
-    next();
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid job ID' });
+  }
+  next();
 }
-
 
 // =========================================================================
 // JOB SEEKER FAVORITES / SAVED JOBS ROUTES (SCRUM-281)
 // =========================================================================
 
-
-// GET /api/jobs/favorites - Fetch full details of all favorited jobs for the logged-in job seeker
 router.get('/favorites', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const favoriteJobs = await getFavoriteJobs(req.user.id);
@@ -56,8 +81,6 @@ router.get('/favorites', requireAuth, requireRole('job_seeker'), async (req, res
   }
 });
 
-
-// GET /api/jobs/favorites/ids - Fetch just the favorited job IDs for quick UI toggle state
 router.get('/favorites/ids', requireAuth, requireRole('job_seeker'), async (req, res) => {
   try {
     const favoriteIds = await getFavoriteJobIds(req.user.id);
@@ -68,8 +91,6 @@ router.get('/favorites/ids', requireAuth, requireRole('job_seeker'), async (req,
   }
 });
 
-
-// POST /api/jobs/:id/favorite - Toggle favorite status on a job posting
 router.post('/:id/favorite', requireAuth, requireRole('job_seeker'), validateJobId, async (req, res) => {
   try {
     const result = await toggleFavoriteJob(req.user.id, req.params.id);
@@ -87,37 +108,13 @@ router.post('/:id/favorite', requireAuth, requireRole('job_seeker'), validateJob
   }
 });
 
-
-
 // =========================================================================
-// RECRUITER POSTING MANAGEMENT ROUTES (SCRUM-310)
+// RECRUITER POSTING MANAGEMENT ROUTES (SCRUM-340 / SCRUM-383)
 // =========================================================================
 
-router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recruiter'), async (req, res) => {    
+router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recruiter'), async (req, res) => {
   try {
-    const jobsWithCounts = await JobPosting.aggregate([
-      { $match: { postedBy: mongoose.Types.ObjectId.createFromHexString(req.user.id) } },
-      {
-        $lookup: {
-          from: 'applications',
-          localField: '_id',
-          foreignField: 'job',
-          as: 'applications'
-        }
-      },
-      {
-        $addFields: {
-          applicantCount: { $size: '$applications' }
-        }
-      },
-      {
-        $project: {
-          applications: 0
-        }
-      },
-      { $sort: { createdAt: -1 } }
-    ]);
-
+    const jobsWithCounts = await getRecruiterPostingsWithCounts(req.user.id);
     res.status(200).json(jobsWithCounts);
   } catch (error) {
     console.error('Error fetching recruiter job postings:', error);
@@ -125,18 +122,9 @@ router.get(['/mine', '/recruiter/my-postings'], requireAuth, requireRole('recrui
   }
 });
 
-// PATCH /api/jobs/:id/archive - Toggle archive status for a recruiter's job posting
 router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
   try {
-    const job = await JobPosting.findById(req.params.id);
-
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-
-    if (job.postedBy.toString() !== req.user.id) {
-      return res.status(403).json({ error: 'You can only archive your own job postings' });
-    }
+    const job = await findOwnedJobPosting(req.params.id, req.user.id, 'archive');
 
     job.isArchived = !job.isArchived;
     await job.save();
@@ -146,6 +134,9 @@ router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobI
       job,
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.error('Error toggling archive status:', error);
     res.status(500).json({ error: 'Server error toggling archive status' });
   }
@@ -157,119 +148,93 @@ router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobI
 
 // GET /api/jobs - Fetch open jobs (not archived, not past their due date) with search & filtering
 router.get('/', async (req, res) => {
-    try {
-        const query = buildJobSearchQuery(req.query);
-        const jobs = await JobPosting.find(query).sort({ createdAt: -1 });
-        res.status(200).json(jobs);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error fetching jobs' });
-    }
+  try {
+    const query = buildJobSearchQuery(req.query);
+    const jobs = await JobPosting.find(query).sort({ createdAt: -1 });
+    res.status(200).json(jobs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error fetching jobs' });
+  }
 });
 
-// GET /api/jobs/:id - Fetch detailed view of a single job
 router.get('/:id', validateJobId, async (req, res) => {
-    try {
-        const job = await JobPosting.findById(req.params.id);
-        if (!job) return res.status(404).json({ error: 'Job not found' });
-        res.status(200).json(job);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error fetching job details' });
-    }
+  try {
+    const job = await JobPosting.findById(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.status(200).json(job);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error fetching job details' });
+  }
 });
 
-// POST /api/jobs - Recruiters create a new job posting, tied to their account
 router.post('/', requireAuth, requireRole('recruiter'), async (req, res) => {
-    try {
-        const validationError = validateJobFields(req.body);
-        if (validationError) {
-            return res.status(400).json({ error: validationError });
-        }
-
-        const dueDateError = validateDueDate(req.body.dueDate);
-        if (dueDateError) {
-            return res.status(400).json({ error: dueDateError });
-        }
-        const { title, company, location, category, description, requirements, dueDate } = req.body;
-        const job = await JobPosting.create({
-            title: title.trim(),
-            company: company.trim(),
-            location: location.trim(),
-            category: category.trim(),
-            description: description.trim(),
-            requirements: requirements.trim(),
-            dueDate: dueDate ? new Date(dueDate) : null,
-            postedBy: req.user.id,
-            isArchived: false,
-        });
-
-        res.status(201).json(job);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error creating job posting' });
+  try {
+    const { error, data } = parseAndValidateJobPayload(req.body);
+    if (error) {
+      return res.status(400).json({ error });
     }
+
+    const job = await JobPosting.create({
+      ...data,
+      dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
+      postedBy: req.user.id,
+      isArchived: false,
+    });
+
+    if (job.dueDate) {
+      await sendDeadlineRemindersForJob(job);
+    }
+
+    res.status(201).json(job);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error creating job posting' });
+  }
 });
 
-// PUT /api/jobs/:id - Recruiters modify a posting they own
 router.put('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
-    try {
-        const job = await JobPosting.findById(req.params.id);
-        if (!job) return res.status(404).json({ error: 'Job not found' });
+  try {
+    const job = await findOwnedJobPosting(req.params.id, req.user.id, 'modify');
 
-        if (job.postedBy.toString() !== req.user.id) {
-            return res.status(403).json({ error: 'You can only modify your own job postings' });
-        }
-
-        const validationError = validateJobFields(req.body);
-        if (validationError) {
-            return res.status(400).json({ error: validationError });
-        }
-
-        const dueDateError = validateDueDate(req.body.dueDate);
-        if (dueDateError) {
-            return res.status(400).json({ error: dueDateError });
-        }
-        const { title, company, location, category, description, requirements, dueDate } = req.body;
-        job.title = title.trim();
-        job.company = company.trim();
-        job.location = location.trim();
-        job.category = category.trim();
-        job.description = description.trim();
-        job.requirements = requirements.trim();
-        if (Object.prototype.hasOwnProperty.call(req.body, 'dueDate')) {
-            job.dueDate = dueDate ? new Date(dueDate) : null;
-        }
-        await job.save();
-
-        res.status(200).json(job);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error updating job posting' });
+    const { error, data } = parseAndValidateJobPayload(req.body);
+    if (error) {
+      return res.status(400).json({ error });
     }
+
+    Object.assign(job, data);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'dueDate')) {
+      job.dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
+    }
+    await job.save();
+
+    if (job.dueDate && !job.isArchived) {
+      await sendDeadlineRemindersForJob(job);
+    }
+
+    res.status(200).json(job);
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Server error updating job posting' });
+  }
 });
 
-// DELETE /api/jobs/:id - Recruiters delete their own job postings
 router.delete('/:id', requireAuth, requireRole('recruiter'), validateJobId, async (req, res) => {
-    try {
-        const job = await JobPosting.findById(req.params.id);
-
-        if (!job) {
-            return res.status(404).json({ error: 'Job not found' });
-        }
-
-        if (job.postedBy.toString() !== req.user.id) {
-            return res.status(403).json({
-                error: 'You can only delete your own job postings'
-            });
-        }
-
-        await job.deleteOne();
-        res.status(200).json({ message: 'Job posting deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error deleting job posting' });
+  try {
+    const job = await findOwnedJobPosting(req.params.id, req.user.id, 'delete');
+    await job.deleteOne();
+    res.status(200).json({ message: 'Job posting deleted successfully' });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
+    console.error(error);
+    res.status(500).json({ error: 'Server error deleting job posting' });
+  }
 });
 
 module.exports = router;
