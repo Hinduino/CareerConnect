@@ -1,4 +1,6 @@
+const mongoose = require("mongoose");
 const Application = require("../models/Application");
+const JobPosting = require("../models/JobPosting");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 const { findResumeByIdForUser } = require("./resumeQueries");
 
@@ -9,6 +11,14 @@ const RECRUITER_EDITABLE_STATUSES = [
   APPLICATION_STATUSES.OFFERED,
   APPLICATION_STATUSES.REJECTED,
 ];
+
+function toSafeObjectId(value) {
+  if (typeof value !== "string" || !/^[a-fA-F0-9]{24}$/.test(value)) {
+    throw new Error("Invalid identifier.");
+  }
+
+  return new mongoose.Types.ObjectId(value);
+}
 
 async function createApplication(userId, jobId, resumeId) {
   if (!resumeId) {
@@ -41,12 +51,15 @@ async function createApplication(userId, jobId, resumeId) {
 }
 
 async function cancelApplication(userId, applicationId) {
-  const application = await Application.findOne({ _id: applicationId, applicant: userId });
+  const application = await Application.findOneAndDelete({
+    _id: toSafeObjectId(applicationId),
+    applicant: toSafeObjectId(userId)
+  });
+
   if (!application) {
     throw new Error("Application not found.");
   }
 
-  await Application.deleteOne({ _id: applicationId });
   return application;
 }
 
@@ -68,7 +81,9 @@ async function declineJobOffer(applicationId, userId) {
 }
 
 async function getApplicationHistoryByUser(userId) {
-  return Application.find({ applicant: userId })
+  return Application.find({
+    applicant: toSafeObjectId(userId)
+  })
     .populate("job", "title company location category description requirements")
     .sort({ createdAt: -1 });
 }
@@ -101,7 +116,6 @@ async function updateApplicationStatus(recruiterId, applicationId, status) {
     throw new Error("Application not found.");
   }
 
-  const JobPosting = require("../models/JobPosting");
   const job = await JobPosting.findById(application.job);
 
   if (!job || job.postedBy.toString() !== recruiterId) {

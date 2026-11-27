@@ -1,5 +1,7 @@
 jest.mock("../models/Application", () => ({
+  find: jest.fn(),
   findOne: jest.fn(),
+  findOneAndDelete: jest.fn(),
   create: jest.fn(),
   deleteOne: jest.fn(),
 }));
@@ -9,7 +11,14 @@ jest.mock("./resumeQueries", () => ({
 
 const Application = require("../models/Application");
 const { findResumeByIdForUser } = require("./resumeQueries");
-const { createApplication, cancelApplication, getApplicationStatus } = require("./applicationqueries");
+const mongoose = require("mongoose");
+
+const {
+  createApplication,
+  cancelApplication,
+  getApplicationStatus,
+  getApplicationHistoryByUser,
+} = require("./applicationqueries");
 const { APPLICATION_STATUSES } = require("../constants/applicationStatus");
 
 const userId = "507f1f77bcf86cd799439011";
@@ -76,23 +85,91 @@ describe("applicationqueries", () => {
   });
 
   describe("cancelApplication", () => {
-    it("deletes an application owned by the requesting user", async () => {
-      Application.findOne.mockResolvedValue({ _id: applicationId });
-      Application.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      await expect(cancelApplication(userId, applicationId)).resolves.toEqual({ _id: applicationId });
-      expect(Application.findOne).toHaveBeenCalledWith({ _id: applicationId, applicant: userId });
-      expect(Application.deleteOne).toHaveBeenCalledWith({ _id: applicationId });
+  it("deletes an application owned by the requesting user", async () => {
+    Application.findOneAndDelete.mockResolvedValue({
+      _id: applicationId
     });
 
-    it("rejects when the application doesn't exist or isn't owned by the user", async () => {
-      Application.findOne.mockResolvedValue(null);
+    await expect(cancelApplication(userId, applicationId))
+      .resolves.toEqual({ _id: applicationId });
 
-      await expect(cancelApplication(userId, applicationId)).rejects.toThrow("Application not found.");
-      expect(Application.deleteOne).not.toHaveBeenCalled();
+    expect(Application.findOneAndDelete).toHaveBeenCalledWith({
+      _id: new mongoose.Types.ObjectId(applicationId),
+      applicant: new mongoose.Types.ObjectId(userId)
     });
   });
 
+  it("rejects when the application doesn't exist or isn't owned by the user", async () => {
+    Application.findOneAndDelete.mockResolvedValue(null);
+
+    await expect(cancelApplication(userId, applicationId))
+      .rejects.toThrow("Application not found.");
+
+    expect(Application.findOneAndDelete).toHaveBeenCalledWith({
+      _id: new mongoose.Types.ObjectId(applicationId),
+      applicant: new mongoose.Types.ObjectId(userId)
+    });
+  });
+
+  it("rejects an invalid application identifier", async () => {
+    await expect(cancelApplication(userId, "invalid-id"))
+      .rejects.toThrow("Invalid identifier.");
+
+    expect(Application.findOneAndDelete).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid user identifier", async () => {
+    await expect(cancelApplication("invalid-id", applicationId))
+      .rejects.toThrow("Invalid identifier.");
+
+    expect(Application.findOneAndDelete).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-string application identifiers", async () => {
+    await expect(cancelApplication(userId, {}))
+      .rejects.toThrow("Invalid identifier.");
+
+    expect(Application.findOneAndDelete).not.toHaveBeenCalled();
+  });
+});
+  describe("getApplicationHistoryByUser", () => {
+  it("retrieves application history using a validated user identifier", async () => {
+    const applications = [{ _id: applicationId }];
+
+    const sort = jest.fn().mockResolvedValue(applications);
+    const populate = jest.fn().mockReturnValue({ sort });
+
+    Application.find.mockReturnValue({ populate });
+
+    await expect(getApplicationHistoryByUser(userId))
+      .resolves.toEqual(applications);
+
+    expect(Application.find).toHaveBeenCalledWith({
+      applicant: new mongoose.Types.ObjectId(userId)
+    });
+
+    expect(populate).toHaveBeenCalledWith(
+      "job",
+      "title company location category description requirements"
+    );
+
+    expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
+  });
+
+  it("rejects an invalid user identifier", async () => {
+    await expect(getApplicationHistoryByUser("invalid-id"))
+      .rejects.toThrow("Invalid identifier.");
+
+    expect(Application.find).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-string user identifiers", async () => {
+    await expect(getApplicationHistoryByUser({}))
+      .rejects.toThrow("Invalid identifier.");
+
+    expect(Application.find).not.toHaveBeenCalled();
+  });
+});
   describe("getApplicationStatus", () => {
     it("reports an existing application", async () => {
       const select = jest.fn().mockResolvedValue({ _id: applicationId, status: APPLICATION_STATUSES.APPLIED });

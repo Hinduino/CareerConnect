@@ -452,9 +452,8 @@ describe('End-to-end status flow', () => {
 // Known bug: role check on submission
 // ==========================================================================
 describe('POST /api/applications (role check)', () => {
-    // Known bug: the submit route has requireAuth but no requireRole, so a
-    // recruiter account can apply to jobs.
-    it.failing('KNOWN BUG: does not let a recruiter submit an application (403)', async () => {
+    // SCRUM-339: Verify that recruiters cannot submit job applications.
+    it('does not let a recruiter submit an application (403)', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
         const otherRecruiterId = await createUser({ role: 'recruiter' });
         const jobId = await createJob(otherRecruiterId);
@@ -534,4 +533,66 @@ describe('POST /api/applications (role check)', () => {
 
         expect(response.status).toBe(404);
         expect(response.body.error).toBe('Application not found');
+    });
+    // ==========================================================================
+// SCRUM-339: Application submission and tracking regression tests
+// ==========================================================================
+
+    describe('SCRUM-339 application regression tests', () => {
+
+        it('rejects submission with an invalid resume ID (400)', async () => {
+            const recruiterId = await createUser({ role: 'recruiter' });
+            const applicantId = await createUser();
+            const jobId = await createJob(recruiterId);
+
+            const response = await request(app)
+                .post('/api/applications')
+                .set('test_user_id', applicantId)
+                .send({ jobId, resumeId: 'invalid-id' });
+
+            expect(response.status).toBe(400);
+            expect(response.body.error).toBe('Invalid resume ID');
+            expect(await Application.countDocuments({
+                applicant: applicantId,
+                job: jobId
+            })).toBe(0);
+        });
+
+        it('rejects declining an offer with an invalid application ID (400)', async () => {
+            const applicantId = await createUser();
+
+            const response = await declineOffer('invalid-id', applicantId);
+
+            expect(response.status).toBe(400);
+            expect(response.body.error).toBe('Invalid application ID');
+        });
+
+        it('prevents recruiters from withdrawing applications (403)', async () => {
+            const { recruiterId, applicationId } = await setupScenario();
+
+            const response = await request(app)
+                .delete(`/api/applications/${applicationId}`)
+                .set('test_user_id', recruiterId);
+
+            expect(response.status).toBe(403);
+            expect(await Application.findById(applicationId)).not.toBeNull();
+        });
+
+        it('returns job descriptions and only the authenticated seeker’s applications', async () => {
+            const { applicantId, jobId, applicationId } = await setupScenario();
+
+            const otherApplicantId = await createUser();
+            await createApplication(otherApplicantId, jobId);
+
+            const response = await request(app)
+                .get('/api/applications/history')
+                .set('test_user_id', applicantId);
+
+            expect(response.status).toBe(200);
+            expect(response.body).toHaveLength(1);
+            expect(response.body[0]._id).toBe(applicationId);
+            expect(response.body[0].job.description).toBe('Build user interfaces.');
+            expect(response.body[0].job.requirements).toBe('2+ years of React');
+        });
+
     });

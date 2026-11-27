@@ -21,11 +21,13 @@ function JobDetail({ jobId, onBack }) {
     const [applied, setApplied] = useState(false);
     const [applicationId, setApplicationId] = useState(null);
     const [statusLoading, setStatusLoading] = useState(false);
+    const [statusError, setStatusError] = useState('');
 
     // The applicant's saved resumes, used to populate the resume picker.
     const [resumes, setResumes] = useState([]);
     const [selectedResumeId, setSelectedResumeId] = useState('');
     const [resumesLoading, setResumesLoading] = useState(false);
+    const [resumesError, setResumesError] = useState('');
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false);
@@ -76,46 +78,88 @@ function JobDetail({ jobId, onBack }) {
     };
 
     useEffect(() => {
+        let active = true;
+
         const loadStatus = async () => {
-            if (!isAuthenticated || !jobId) {
+            setStatusError('');
+
+            if (!isJobSeeker || !token || !jobId) {
                 setApplied(false);
                 setApplicationId(null);
+                setStatusLoading(false);
                 return;
             }
+
             setStatusLoading(true);
+
             try {
                 const data = await fetchApplicationStatus(token, jobId);
+
+                if (!active) return;
+
                 setApplied(data.applied);
                 setApplicationId(data.applicationId);
             } catch {
+                if (!active) return;
+
                 setApplied(false);
                 setApplicationId(null);
+                setStatusError('Unable to verify your application status. Please try again later.');
             } finally {
-                setStatusLoading(false);
+                if (active) setStatusLoading(false);
             }
         };
+
         loadStatus();
-    }, [isAuthenticated, token, jobId]);
+
+        return () => {
+            active = false;
+        };
+    }, [isJobSeeker, token, jobId]);
 
     useEffect(() => {
+        let active = true;
+
         const loadResumes = async () => {
-            if (!isAuthenticated || applied) {
+            setResumesError('');
+
+            if (!isJobSeeker || !token || applied) {
                 setResumes([]);
+                setSelectedResumeId('');
+                setResumesLoading(false);
                 return;
             }
+
             setResumesLoading(true);
+
             try {
                 const data = await fetchResumes(token);
+
+                if (!active) return;
+
                 setResumes(data);
-                setSelectedResumeId((current) => current || data[0]?.id || '');
+                setSelectedResumeId((current) =>
+                    data.some((resume) => resume.id === current)
+                        ? current
+                        : data[0]?.id || ''
+                );
             } catch {
+                if (!active) return;
+
                 setResumes([]);
+                setSelectedResumeId('');
+                setResumesError('Unable to load your resumes. Please try again later.');
             } finally {
-                setResumesLoading(false);
+                if (active) setResumesLoading(false);
             }
         };
+
         loadResumes();
-    }, [isAuthenticated, token, applied]);
+
+        return () => {
+            active = false;
+        };
+    }, [isJobSeeker, token, applied]);
 
     const handleApply = async () => {
         if (!isAuthenticated) {
@@ -240,8 +284,14 @@ function JobDetail({ jobId, onBack }) {
                             Log in or sign up above to submit an application.
                         </p>
                     </div>
+                ) : !isJobSeeker ? (
+                    null
                 ) : statusLoading ? (
                     <p>Checking application status...</p>
+                ) : statusError ? (
+                    <p role="alert" style={{ color: 'red' }}>
+                        {statusError}
+                    </p>
                 ) : applied ? (
                     <button
                         type="button"
@@ -253,6 +303,10 @@ function JobDetail({ jobId, onBack }) {
                     </button>
                 ) : resumesLoading ? (
                     <p>Loading your resumes...</p>
+                ) : resumesError ? (
+                    <p role="alert" style={{ color: 'red' }}>
+                        {resumesError}
+                    </p>
                 ) : resumes.length === 0 ? (
                     <p className="resume-hint">
                         Upload a resume in your profile before applying for this job.

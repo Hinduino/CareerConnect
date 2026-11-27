@@ -6,14 +6,14 @@ const { fireEvent, render, screen, waitFor, within } = require('@testing-library
 
 jest.mock('../context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('../api/applicationApi', () => ({
-  fetchMyApplications: jest.fn(),
+  fetchApplicationHistory: jest.fn(),
   cancelApplication: jest.fn(),
   declineJobOffer: jest.fn(),
 }));
 
 const ApplicationHistory = require('./ApplicationHistory').default;
 const { useAuth } = require('../context/AuthContext');
-const { fetchMyApplications, cancelApplication, declineJobOffer } = require('../api/applicationApi');
+const { fetchApplicationHistory, cancelApplication, declineJobOffer } = require('../api/applicationApi');
 
 function application(id, title, status, extra = {}) {
   return {
@@ -45,18 +45,18 @@ describe('ApplicationHistory', () => {
   });
 
   it('lists every application with its company, status and total', async () => {
-    fetchMyApplications.mockResolvedValue(sampleApplications);
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
     render(<ApplicationHistory />);
 
     expect(await screen.findByText('Frontend Developer')).toBeInTheDocument();
-    expect(fetchMyApplications).toHaveBeenCalledWith('token');
+    expect(fetchApplicationHistory).toHaveBeenCalledWith('token');
     expect(within(rowFor('Data Analyst')).getByText('Applied')).toBeInTheDocument();
     expect(within(rowFor('Designer')).getByText('Offer Declined')).toBeInTheDocument();
     expect(screen.getByText(/Total Submitted:/)).toHaveTextContent('Total Submitted: 4');
   });
 
   it('shows the analytics panel above the table when there are applications (SCRUM-318)', async () => {
-    fetchMyApplications.mockResolvedValue(sampleApplications);
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
     render(<ApplicationHistory />);
     await screen.findByText('Frontend Developer');
 
@@ -65,7 +65,7 @@ describe('ApplicationHistory', () => {
   });
 
   it('shows an empty state and no analytics when there are no applications', async () => {
-    fetchMyApplications.mockResolvedValue([]);
+    fetchApplicationHistory.mockResolvedValue([]);
     render(<ApplicationHistory />);
 
     expect(await screen.findByText('No applications found')).toBeInTheDocument();
@@ -74,11 +74,72 @@ describe('ApplicationHistory', () => {
 
   it('shows the error message when loading fails', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    fetchMyApplications.mockRejectedValue(new Error('Server error fetching your applications'));
+    fetchApplicationHistory.mockRejectedValue(new Error('Server error fetching your applications'));
     render(<ApplicationHistory />);
 
     expect(await screen.findByText('Server error fetching your applications')).toBeInTheDocument();
     console.error.mockRestore();
+  });
+  it('clears outdated applications when refreshing the history fails', async () => {
+  const consoleSpy = jest.spyOn(console, 'error')
+    .mockImplementation(() => {});
+
+  try {
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
+    cancelApplication.mockResolvedValue({});
+
+    render(<ApplicationHistory />);
+
+    await screen.findByText('Data Analyst');
+
+    fetchApplicationHistory.mockRejectedValue(
+      new Error('Unable to refresh applications.')
+    );
+
+    fireEvent.click(
+      within(rowFor('Data Analyst')).getByText('Withdraw')
+    );
+
+    expect(
+      await screen.findByText('Unable to refresh applications.')
+    ).toBeInTheDocument();
+
+    expect(cancelApplication).toHaveBeenCalledWith('token', 'a2');
+    expect(screen.queryByText('Data Analyst')).not.toBeInTheDocument();
+    expect(screen.queryByText('Frontend Developer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Total Applications')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText(/Total Submitted:/))
+      .toHaveTextContent('Total Submitted: 0');
+  } finally {
+    consoleSpy.mockRestore();
+  }
+});
+
+it('clears application history when authentication is lost', async () => {
+    localStorage.removeItem('token');
+
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
+
+    const { rerender } = render(<ApplicationHistory />);
+
+    await screen.findByText('Data Analyst');
+
+    useAuth.mockReturnValue({
+      user: null,
+      token: null
+    });
+
+    rerender(<ApplicationHistory />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Data Analyst')).not.toBeInTheDocument();
+      expect(screen.queryByText('Frontend Developer')).not.toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.queryByText('Total Applications')).not.toBeInTheDocument();
+    });
+
+    expect(fetchApplicationHistory).toHaveBeenCalledTimes(1);
   });
 
   describe('withdraw (SCRUM-309)', () => {
@@ -91,7 +152,7 @@ describe('ApplicationHistory', () => {
       ['Offer Declined', false],
       ['Cancelled', false],
     ])('a "%s" application shows Withdraw: %s', async (status, shown) => {
-      fetchMyApplications.mockResolvedValue([application('a1', 'Frontend Developer', status)]);
+      fetchApplicationHistory.mockResolvedValue([application('a1', 'Frontend Developer', status)]);
       render(<ApplicationHistory />);
       await screen.findByText('Frontend Developer');
 
@@ -104,7 +165,7 @@ describe('ApplicationHistory', () => {
     });
 
     it('asks for confirmation, withdraws, and reloads the list', async () => {
-      fetchMyApplications
+      fetchApplicationHistory
         .mockResolvedValueOnce(sampleApplications)
         .mockResolvedValueOnce(sampleApplications.filter((a) => a._id !== 'a2'));
       cancelApplication.mockResolvedValue({});
@@ -116,12 +177,12 @@ describe('ApplicationHistory', () => {
       expect(window.confirm).toHaveBeenCalledWith('Are you sure you want to withdraw this application?');
       await waitFor(() => expect(cancelApplication).toHaveBeenCalledWith('token', 'a2'));
       await waitFor(() => expect(screen.queryByText('Data Analyst')).not.toBeInTheDocument());
-      expect(fetchMyApplications).toHaveBeenCalledTimes(2);
+      expect(fetchApplicationHistory).toHaveBeenCalledTimes(2);
     });
 
     it('does nothing if the seeker cancels the confirmation', async () => {
       window.confirm = jest.fn(() => false);
-      fetchMyApplications.mockResolvedValue(sampleApplications);
+      fetchApplicationHistory.mockResolvedValue(sampleApplications);
       render(<ApplicationHistory />);
       await screen.findByText('Data Analyst');
 
@@ -131,7 +192,7 @@ describe('ApplicationHistory', () => {
     });
 
     it('tells the seeker when withdrawing fails', async () => {
-      fetchMyApplications.mockResolvedValue(sampleApplications);
+      fetchApplicationHistory.mockResolvedValue(sampleApplications);
       cancelApplication.mockRejectedValue(new Error('Application not found.'));
       render(<ApplicationHistory />);
       await screen.findByText('Data Analyst');
@@ -144,7 +205,7 @@ describe('ApplicationHistory', () => {
 
   describe('decline offer (SCRUM-309)', () => {
     it('only shows Decline Offer on offered applications', async () => {
-      fetchMyApplications.mockResolvedValue(sampleApplications);
+      fetchApplicationHistory.mockResolvedValue(sampleApplications);
       render(<ApplicationHistory />);
       await screen.findByText('Frontend Developer');
 
@@ -153,7 +214,7 @@ describe('ApplicationHistory', () => {
     });
 
     it('asks for confirmation, declines, and shows the new status after reloading', async () => {
-      fetchMyApplications
+      fetchApplicationHistory
         .mockResolvedValueOnce(sampleApplications)
         .mockResolvedValueOnce([
           application('a1', 'Frontend Developer', 'Offer Declined'),
@@ -172,7 +233,7 @@ describe('ApplicationHistory', () => {
     });
 
     it('tells the seeker when declining fails', async () => {
-      fetchMyApplications.mockResolvedValue(sampleApplications);
+      fetchApplicationHistory.mockResolvedValue(sampleApplications);
       declineJobOffer.mockRejectedValue(new Error('Cannot decline an offer unless one has been extended.'));
       render(<ApplicationHistory />);
       await screen.findByText('Frontend Developer');
@@ -186,7 +247,7 @@ describe('ApplicationHistory', () => {
   });
 
   it('opens the details when a row is clicked and closes them again', async () => {
-    fetchMyApplications.mockResolvedValue(sampleApplications);
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
     render(<ApplicationHistory />);
     await screen.findByText('Data Analyst');
 
@@ -200,7 +261,7 @@ describe('ApplicationHistory', () => {
   });
 
   it('opens the application targeted by a notification', async () => {
-    fetchMyApplications.mockResolvedValue(sampleApplications);
+    fetchApplicationHistory.mockResolvedValue(sampleApplications);
     render(<ApplicationHistory selectedApplicationId="a2" />);
 
     expect(await screen.findAllByText('Data Analyst')).toHaveLength(2);
@@ -212,19 +273,21 @@ describe('ApplicationHistory', () => {
   // Known bug: the page loads data from /api/applications/my, which does not
   // include the job description, instead of /api/applications/history, which
   // does. So every row and the details panel say there is no description.
-  it.failing('KNOWN BUG: shows the job description loaded from the server', async () => {
-    fetchMyApplications.mockResolvedValue([
-      // Shape of a real /my response: the job has no description field.
-      {
-        _id: 'a1',
-        status: 'Applied',
-        createdAt: '2026-11-09T12:00:00.000Z',
-        job: { title: 'Data Analyst', company: 'Acme Corp', location: 'Montreal', category: 'Data' },
-      },
-    ]);
-    render(<ApplicationHistory />);
-    await screen.findByText('Data Analyst');
+  it('shows the job description loaded from application history', async () => {
+      fetchApplicationHistory.mockResolvedValue([
+          application('a1', 'Data Analyst', 'Applied')
+      ]);
 
-    expect(screen.queryByText('No description available')).not.toBeInTheDocument();
+      render(<ApplicationHistory />);
+
+      expect(
+          await screen.findByText('About the Data Analyst role')
+      ).toBeInTheDocument();
+
+      expect(fetchApplicationHistory).toHaveBeenCalledWith('token');
+
+      expect(
+          screen.queryByText('No description available')
+      ).not.toBeInTheDocument();
   });
 });

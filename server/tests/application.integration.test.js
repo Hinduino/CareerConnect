@@ -167,7 +167,32 @@ describe('Application submission and management', () => {
 
         expect(duplicate.status).toBe(409);
     });
+    it('enforces unique applications at the database level', async () => {
+        const recruiterId = await createUser({ role: 'recruiter' });
+        const applicantId = await createUser();
+        const jobId = await createJob(recruiterId);
 
+        await Application.init();
+
+        await Application.create({
+            applicant: applicantId,
+            job: jobId
+        });
+
+        await expect(
+            Application.create({
+                applicant: applicantId,
+                job: jobId
+            })
+        ).rejects.toMatchObject({
+            code: 11000
+        });
+
+        expect(await Application.countDocuments({
+            applicant: applicantId,
+            job: jobId
+        })).toBe(1);
+    });
     it('rejects applications for postings whose deadline has expired', async () => {
         const recruiterId = await createUser({ role: 'recruiter' });
         const applicantId = await createUser();
