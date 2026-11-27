@@ -79,10 +79,11 @@ describe("application route notifications", () => {
       relatedApplication: applicationId,
     });
   });
+
   it("returns a generic error when application submission fails", async () => {
     JobPosting.findById.mockResolvedValue({
       ...job,
-      postedBy: recruiterId
+      postedBy: recruiterId,
     });
 
     createApplication.mockRejectedValueOnce(
@@ -97,15 +98,16 @@ describe("application route notifications", () => {
     expect(response.status).toBe(500);
 
     expect(response.body).toEqual({
-      error: "Server error submitting application."
+      error: "Server error submitting application.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("returns 409 when MongoDB rejects a duplicate application", async () => {
     JobPosting.findById.mockResolvedValue({
       ...job,
-      postedBy: recruiterId
+      postedBy: recruiterId,
     });
 
     const duplicateError = new Error("Duplicate key error");
@@ -121,11 +123,12 @@ describe("application route notifications", () => {
     expect(response.status).toBe(409);
 
     expect(response.body).toEqual({
-      error: "You have already applied for this job."
+      error: "You have already applied for this job.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("returns a generic error when declining an offer fails", async () => {
     declineJobOffer.mockRejectedValueOnce(
       new Error("Internal database connection failed")
@@ -138,11 +141,12 @@ describe("application route notifications", () => {
     expect(response.status).toBe(500);
 
     expect(response.body).toEqual({
-      error: "Server error declining offer."
+      error: "Server error declining offer.",
     });
 
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotificationSafe).not.toHaveBeenCalled();
   });
+
   it("notifies the recruiter when an applicant declines an offer", async () => {
     const declinedApplication = {
       ...application,
