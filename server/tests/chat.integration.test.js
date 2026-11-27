@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 process.env.JWT_SECRET = 'test_secret_key_12345';
 process.env.MONGO_URI = 'mongodb://localhost:27017/';
@@ -119,8 +120,9 @@ describe('AI chat route', () => {
             .send({ messages: [{ role: 'user', content: 'What is my application status?' }] });
 
         expect(response.status).toBe(200);
-        expect(User.findById).toHaveBeenCalledWith(userId);
-        expect(Application.find).toHaveBeenCalledWith({ applicant: userId });
+        const authenticatedUserId = new mongoose.Types.ObjectId(userId);
+        expect(User.findById).toHaveBeenCalledWith(authenticatedUserId);
+        expect(Application.find).toHaveBeenCalledWith({ applicant: authenticatedUserId });
         expect(response.body.reply).toContain('interview');
         const systemContext = getKiloRequest(fetchMock).messages[0].content;
         expect(systemContext).not.toContain('Jordan Candidate');

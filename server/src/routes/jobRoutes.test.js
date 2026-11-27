@@ -70,7 +70,7 @@ describe("job routes", () => {
     expect(response.body.error).toBe("Job not found");
   });
 
-  it("filters public job listings by keyword, location, and category while excluding archived jobs", async () => {
+  it("filters public job listings by keyword, location, and category while excluding archived and expired jobs", async () => {
     const sortMock = jest.fn().mockResolvedValue([{ _id: jobId, ...jobFields }]);
     JobPosting.find.mockReturnValue({ sort: sortMock });
 
@@ -79,12 +79,13 @@ describe("job routes", () => {
       .query({ keyword: "Software", location: "Remote", category: "Engineering" });
 
     expect(response.status).toBe(200);
-    expect(JobPosting.find).toHaveBeenCalledWith({
-      isArchived: { $ne: true },
-      title: { $regex: "Software", $options: "i" },
-      location: { $regex: "Remote", $options: "i" },
-      category: "Engineering",
-    });
+    // The filter is built by queries/jobSearch.js (SCRUM-365).
+    const [{ $and: conditions }] = JobPosting.find.mock.calls[0];
+    expect(conditions[0]).toEqual({ isArchived: { $ne: true } });
+    expect(conditions[1]).toEqual({ $or: [{ dueDate: null }, { dueDate: { $gte: expect.any(Date) } }] });
+    expect(conditions[2].$or).toContainEqual({ title: { $regex: "Software", $options: "i" } });
+    expect(conditions[3]).toEqual({ location: { $regex: "Remote", $options: "i" } });
+    expect(conditions[4]).toEqual({ category: { $regex: "^Engineering$", $options: "i" } });
     expect(sortMock).toHaveBeenCalledWith({ createdAt: -1 });
   });
 

@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const JobPosting = require('../models/JobPosting');
+const { buildJobSearchQuery } = require('../queries/jobSearch');
 const requireAuth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
 const {
@@ -145,15 +146,10 @@ router.patch('/:id/archive', requireAuth, requireRole('recruiter'), validateJobI
 // GENERAL JOB LISTING & SEARCH ROUTES (APPLICANT & PUBLIC)
 // =========================================================================
 
+// GET /api/jobs - Fetch open jobs (not archived, not past their due date) with search & filtering
 router.get('/', async (req, res) => {
   try {
-    const { keyword, location, category } = req.query;
-    const query = { isArchived: { $ne: true } };
-
-    if (keyword) query.title = { $regex: keyword, $options: 'i' };
-    if (location) query.location = { $regex: location, $options: 'i' };
-    if (category) query.category = category;
-
+    const query = buildJobSearchQuery(req.query);
     const jobs = await JobPosting.find(query).sort({ createdAt: -1 });
     res.status(200).json(jobs);
   } catch (error) {
