@@ -68,6 +68,17 @@ function ApplicationActionCells({ application, onDownloadResume, onStatusChange,
   );
 }
 
+// Loads one posting's applications and tags each with the job it belongs to.
+// Kept outside the component so the loading effect does not nest functions too deeply (SonarCloud S2004).
+async function fetchApplicationsWithJob(token, job) {
+  const jobApplications = await fetchJobApplications(token, job._id);
+  return jobApplications.map((application) => ({
+    ...application,
+    jobTitle: job.title,
+    jobCompany: job.company,
+  }));
+}
+
 function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null }) {
   const { token } = useAuth();
   const [jobs, setJobs] = useState([]);
@@ -124,15 +135,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
         const recruiterJobs = await fetchMyJobs(token);
 
         const applicationGroups = await Promise.all(
-          recruiterJobs.map(async (job) => {
-            const jobApplications = await fetchJobApplications(token, job._id);
-
-            return jobApplications.map((application) => ({
-              ...application,
-              jobTitle: job.title,
-              jobCompany: job.company,
-            }));
-          })
+          recruiterJobs.map((job) => fetchApplicationsWithJob(token, job))
         );
 
         if (!cancelled) {
@@ -288,6 +291,9 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
     }
   );
 
+  const showAllApplicationsTable =
+    !allApplicationsLoading && !allApplicationsError && allRecruiterApplications.length > 0;
+
   return (
     <main className="profile-page recruiter-dashboard">
       <div className="profile-container">
@@ -388,13 +394,16 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
             </div>
             {allApplicationsLoading ? (
               <p>Loading applications...</p>
-            ) : allApplicationsError ? (
+            ) : null}
+            {!allApplicationsLoading && allApplicationsError ? (
               <p role="alert" className="resume-error">
                 {allApplicationsError}
               </p>
-            ) : allRecruiterApplications.length === 0 ? (
+            ) : null}
+            {!allApplicationsLoading && !allApplicationsError && allRecruiterApplications.length === 0 ? (
               <p>No applications received yet.</p>
-            ) : (
+            ) : null}
+            {showAllApplicationsTable ? (
               <div className="applications-table-wrapper">
                 <table className="applications-table recruiter-applications-table">
                   <thead>
@@ -437,7 +446,7 @@ function RecruiterDashboard({ currentView, onBack, selectedApplicationId = null 
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </section>
         )}
 
