@@ -8,8 +8,9 @@ module.exports = {
       format: 'cjs',
       jsx: 'automatic',
       sourcefile: filename,
+      sourcemap: true,
       target: 'node18',
     });
-    return { code: result.code };
+    return { code: result.code, map: JSON.parse(result.map) };
   },
 };

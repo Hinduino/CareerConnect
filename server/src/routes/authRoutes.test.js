@@ -168,3 +168,13 @@ describe("POST /api/login", () => {
     expect(res.body.error).toBe("Internal Server Error");
   });
 });
+
+describe("POST /api/login without a JSON body", () => {
+  it("rejects the login instead of crashing on the missing body", async () => {
+    const res = await request(app).post("/api/login");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Email and password are required");
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+});

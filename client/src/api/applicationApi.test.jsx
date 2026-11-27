@@ -238,3 +238,34 @@ it('uses a fallback error when application history retrieval fails', async () =>
   ).rejects.toThrow('Failed to fetch application history');
 });
 });
+
+describe('applicationApi resume viewing defaults', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+    URL.createObjectURL = jest.fn(() => 'blob:resume');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('fetches the resume for inline viewing when no options are given', async () => {
+    global.fetch.mockResolvedValue(response({}));
+
+    await expect(fetchApplicationResumeBlobUrl('token', 'app-1')).resolves.toBe('blob:resume');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/applications/app-1/resume',
+      { headers: { Authorization: 'Bearer token' } },
+    );
+  });
+
+  it('defaults to inline viewing when the download flag is omitted', async () => {
+    global.fetch.mockResolvedValue(response({}));
+
+    await expect(fetchApplicationResumeBlobUrl('token', 'app-1', {})).resolves.toBe('blob:resume');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/applications/app-1/resume',
+      { headers: { Authorization: 'Bearer token' } },
+    );
+  });
+});
