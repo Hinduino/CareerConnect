@@ -63,6 +63,13 @@ export function fetchMyApplications(token) {
   });
 }
 
+export function fetchApplicationHistory(token) {
+    return requestJson("/applications/history", {
+        token,
+        fallbackError: "Failed to fetch application history"
+    });
+}
+
 // Update an application status (recruiter only).
 export async function updateApplicationStatus(token, applicationId, status, interviewDate = null) {
   const res = await fetch(`${API_BASE}/applications/${applicationId}/status`, {

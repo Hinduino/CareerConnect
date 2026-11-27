@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fetchMyApplications, cancelApplication, declineJobOffer } from '../api/applicationApi';
+import { fetchApplicationHistory, cancelApplication, declineJobOffer } from '../api/applicationApi';
 import ApplicationAnalytics from './ApplicationAnalytics';
 
 const STATUS_STYLES = {
@@ -14,6 +14,13 @@ const STATUS_STYLES = {
   'Offer Declined': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
   Cancelled: { bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' },
 };
+function getStatusStyle(status) {
+    return STATUS_STYLES[status] || {
+        bg: '#f1f5f9',
+        text: '#475569',
+        border: '#cbd5e1'
+    };
+}
 
 function formatInterviewDateTime(value) {
   if (!value) return null;
@@ -46,13 +53,21 @@ function ApplicationHistory({
     let isSubscribed = true;
 
     async function loadData() {
-      if (!authToken) {
-        if (isSubscribed) setLoading(false);
-        return;
-      }
+        if (!authToken) {
+            if (isSubscribed) {
+                setApplications([]);
+                setSelectedApp(null);
+                setError('');
+                setLoading(false);
+            }
+            return;
+        }
 
-      try {
-        const data = await fetchMyApplications(authToken);
+        setLoading(true);
+        setError('');
+
+        try {
+            const data = await fetchApplicationHistory(authToken);
         if (isSubscribed) {
           const loadedApplications = data || [];
           setApplications(loadedApplications);
@@ -64,11 +79,13 @@ function ApplicationHistory({
           setError('');
         }
       } catch (err) {
-        if (isSubscribed) {
-          console.error('Error fetching applications:', err);
-          setError(err.message || 'Unable to load applications.');
-        }
-      } finally {
+          if (isSubscribed) {
+              console.error('Error fetching applications:', err);
+              setApplications([]);
+              setSelectedApp(null);
+              setError(err.message || 'Unable to load applications.');
+          }
+      }finally {
         if (isSubscribed) {
           setLoading(false);
         }
@@ -82,38 +99,50 @@ function ApplicationHistory({
     };
   }, [authToken, user, reloadKey, selectedApplicationId]);
 
-  const handleDeclineOffer = async (e, applicationId) => {
+  const handleApplicationAction = async (
+    e,
+    applicationId,
+    confirmationMessage,
+    operation,
+    fallbackError
+) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to decline this job offer?')) return;
+
+    if (!window.confirm(confirmationMessage)) return;
 
     setActionLoading(true);
+
     try {
-      await declineJobOffer(authToken, applicationId);
-      refreshList();
-      if (selectedApp && selectedApp._id === applicationId) setSelectedApp(null);
+        await operation(authToken, applicationId);
+        refreshList();
+
+        if (selectedApp && selectedApp._id === applicationId) {
+            setSelectedApp(null);
+        }
     } catch (err) {
-      alert(err.message || 'Failed to decline offer');
+        alert(err.message || fallbackError);
     } finally {
-      setActionLoading(false);
+        setActionLoading(false);
     }
-  };
+};
 
-  const handleCancelApplication = async (e, applicationId) => {
-    e.stopPropagation();
-    if (!window.confirm('Are you sure you want to withdraw this application?')) return;
+const handleDeclineOffer = (e, applicationId) =>
+    handleApplicationAction(
+        e,
+        applicationId,
+        'Are you sure you want to decline this job offer?',
+        declineJobOffer,
+        'Failed to decline offer'
+    );
 
-    setActionLoading(true);
-    try {
-      await cancelApplication(authToken, applicationId);
-      refreshList();
-      if (selectedApp && selectedApp._id === applicationId) setSelectedApp(null);
-    } catch (err) {
-      alert(err.message || 'Failed to cancel application');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
+const handleCancelApplication = (e, applicationId) =>
+    handleApplicationAction(
+        e,
+        applicationId,
+        'Are you sure you want to withdraw this application?',
+        cancelApplication,
+        'Failed to cancel application'
+    );
   const handleCloseDetails = () => {
     setSelectedApp(null);
     onClearSelectedApplication?.();
@@ -156,7 +185,7 @@ function ApplicationHistory({
         </div>
       )}
 
-      {!loading && applications.length > 0 && (
+      {!loading && !error && applications.length > 0 && (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: '#ffffff' }}>
             <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
@@ -170,7 +199,7 @@ function ApplicationHistory({
             </thead>
             <tbody>
               {applications.map((app) => {
-                const conf = STATUS_STYLES[app.status] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+                const conf = getStatusStyle(app.status);
                 const isOffered = app.status === 'Offered';
                 const canCancel = !['Rejected', 'Offer Declined', 'Cancelled'].includes(app.status);
                 const formattedInterview = formatInterviewDateTime(app.interviewDate);
@@ -273,7 +302,7 @@ function ApplicationHistory({
         </div>
       )}
 
-      {selectedApp && (
+      {!loading && !error && selectedApp && (
         <div
           onClick={handleCloseDetails}
           style={{
@@ -312,9 +341,9 @@ function ApplicationHistory({
                   borderRadius: '9999px',
                   fontSize: '0.75rem',
                   fontWeight: '600',
-                  backgroundColor: STATUS_STYLES[selectedApp.status]?.bg || '#f1f5f9',
-                  color: STATUS_STYLES[selectedApp.status]?.text || '#475569',
-                  border: `1px solid ${STATUS_STYLES[selectedApp.status]?.border || '#cbd5e1'}`,
+                  backgroundColor: getStatusStyle(selectedApp.status).bg,
+                  color: getStatusStyle(selectedApp.status).text,
+                  border: `1px solid ${getStatusStyle(selectedApp.status).border}`,
                 }}
               >
                 {selectedApp.status}
