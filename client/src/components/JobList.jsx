@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatPostedDate } from '../utils/dateUtils';
+import { formatDueDate, formatPostedDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { fetchFavoriteJobIds, toggleFavoriteJob } from '../api/favoriteApi';
 
@@ -20,9 +20,8 @@ function getCategoryOptions(jobs) {
 }
 
 function formatDeadline(dueDate) {
-    if (!dueDate) return '';
-    const date = new Date(dueDate);
-    return Number.isNaN(date.getTime()) ? '' : `Apply by ${date.toLocaleDateString()}`;
+    const date = formatDueDate(dueDate);
+    return date ? `Apply by ${date}` : '';
 }
 
 async function requestJobs(filters) {

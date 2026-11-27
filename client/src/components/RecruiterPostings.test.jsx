@@ -221,6 +221,77 @@ describe('RecruiterPostings', () => {
       expect(await screen.findByRole('status')).toHaveTextContent('Job posting updated successfully.');
     });
 
+    // SCRUM-373: Application Due Date (SCRUM-372) in the create/edit modal and the table
+    describe('application due date', () => {
+      const originalTz = process.env.TZ;
+      const withDueDate = { ...frontend, dueDate: '2026-12-15T00:00:00.000Z' };
+
+      afterEach(() => {
+        process.env.TZ = originalTz;
+      });
+
+      function dueDateField() {
+        return screen.getByLabelText('Application Due Date (Optional)');
+      }
+
+      it('shows the due date the recruiter picked, even in Toronto, and None when there is none', async () => {
+        process.env.TZ = 'America/Toronto';
+        fetchRecruiterPostings.mockResolvedValue([withDueDate, analyst]);
+        const expected = new Date(Date.UTC(2026, 11, 15, 12)).toLocaleDateString(undefined, { timeZone: 'UTC' });
+
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        expect(within(rowFor('Frontend Developer')).getByText(expected)).toBeInTheDocument();
+        expect(within(rowFor('Data Analyst')).getByText('None')).toBeInTheDocument();
+      });
+
+      it('sends the picked due date when creating a posting', async () => {
+        createJobPosting.mockResolvedValue({});
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(screen.getByText('+ Create New Job'));
+        expect(dueDateField()).toHaveAttribute('type', 'date');
+        expect(dueDateField()).not.toBeRequired();
+        const values = ['QA Tester', 'Acme Corp', 'Toronto', 'Engineering', 'Test the app.', 'Attention to detail'];
+        formFields().forEach((field, i) => fireEvent.change(field, { target: { value: values[i] } }));
+        fireEvent.change(dueDateField(), { target: { value: '2026-12-20' } });
+        fireEvent.click(screen.getByText('Save'));
+
+        await waitFor(() =>
+          expect(createJobPosting).toHaveBeenCalledWith('token', expect.objectContaining({ dueDate: '2026-12-20' }))
+        );
+      });
+
+      it('fills in the saved due date when editing and lets the recruiter clear it', async () => {
+        process.env.TZ = 'America/Toronto';
+        fetchRecruiterPostings.mockResolvedValue([withDueDate, analyst]);
+        updateJobPosting.mockResolvedValue({});
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(within(rowFor('Frontend Developer')).getByText('Edit'));
+        expect(dueDateField()).toHaveValue('2026-12-15');
+
+        fireEvent.change(dueDateField(), { target: { value: '' } });
+        fireEvent.click(screen.getByText('Save'));
+
+        await waitFor(() =>
+          expect(updateJobPosting).toHaveBeenCalledWith('token', 'job-fe', expect.objectContaining({ dueDate: '' }))
+        );
+      });
+
+      it('opens Edit with an empty due date for a posting that has none', async () => {
+        render(<RecruiterPostings />);
+        await screen.findByText('Frontend Developer');
+
+        fireEvent.click(within(rowFor('Frontend Developer')).getByText('Edit'));
+
+        expect(dueDateField()).toHaveValue('');
+      });
+    });
+
     it('closes the form without saving on Cancel', async () => {
       render(<RecruiterPostings />);
       await screen.findByText('Frontend Developer');

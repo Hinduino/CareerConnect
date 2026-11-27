@@ -8,6 +8,7 @@ import {
   fetchApplicantsForJob,
 } from '../api/jobManagementApi';
 import { updateApplicationStatus, fetchApplicationResumeBlobUrl } from '../api/applicationApi';
+import { formatDueDate } from '../utils/dateUtils';
 
 const STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
 
@@ -318,7 +319,7 @@ function RecruiterPostings() {
                     {job.location} &bull; {job.category}
                   </td>
                   <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '0.85rem' }}>
-                    {job.dueDate ? new Date(job.dueDate).toLocaleDateString() : 'None'}
+                    {formatDueDate(job.dueDate) || 'None'}
                   </td>
                   <td style={{ padding: '14px 16px', fontWeight: '600', color: '#4f46e5' }}>
                     {job.applicantCount || 0} received
