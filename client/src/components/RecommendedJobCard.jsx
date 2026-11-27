@@ -1,3 +1,5 @@
+import { formatDueDate } from '../utils/dateUtils';
+
 const cardStyle = {
   border: '1px solid #e2e8f0',
   borderRadius: '8px',
@@ -31,7 +33,7 @@ function RecommendedJobCard({
         </div>
         {job.dueDate && (
           <p style={{ color: '#64748b' }}>
-            Apply by {new Date(job.dueDate).toLocaleDateString()}
+            Apply by {formatDueDate(job.dueDate)}
           </p>
         )}
       </div>

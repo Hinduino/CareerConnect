@@ -22,3 +22,14 @@ export function formatUpdatedDate(dateString) {
   if (diffDays === 1) return 'Updated 1 day ago';
   return `Updated ${diffDays} days ago`;
 }
+
+// A due date is a calendar day that the server stores as midnight UTC
+// (the date input sends "2026-11-29", saved as 2026-11-29T00:00:00Z).
+// Showing it in the browser's time zone moves it back a day for anyone
+// west of UTC (in Toronto it would read Nov 28), so it is shown in UTC.
+export function formatDueDate(dateString) {
+  if (!dateString) return '';
+
+  const due = new Date(dateString);
+  return Number.isNaN(due.getTime()) ? '' : due.toLocaleDateString(undefined, { timeZone: 'UTC' });
+}

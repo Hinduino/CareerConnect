@@ -188,7 +188,8 @@ function NotificationBell({ onOpenNotification }) {
             <p style={{ padding: '16px', margin: 0, color: '#64748b', fontSize: '0.875rem' }}>
               Loading notifications...
             </p>
-          ) : notifications.length === 0 ? (
+          ) : null}
+          {!loading && notifications.length === 0 ? (
             <p
               style={{
                 padding: '24px 16px',
@@ -200,7 +201,8 @@ function NotificationBell({ onOpenNotification }) {
             >
               No notifications yet.
             </p>
-          ) : (
+          ) : null}
+          {notifications.length > 0 ? (
             <div>
               {notifications.map((notif) => (
                 <button
@@ -254,7 +256,7 @@ function NotificationBell({ onOpenNotification }) {
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -1,3 +1,13 @@
+const API_BASE =
+  globalThis.process?.env?.VITE_API_URL || 'http://localhost:3000/api';
+
+async function parseJsonSafely(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
 import { fetchBlobUrl, requestJson } from "./http";
 
 // Whether the logged-in user already has an application on file for a job.
@@ -61,13 +71,23 @@ export function fetchApplicationHistory(token) {
 }
 
 // Update an application status (recruiter only).
-export function updateApplicationStatus(token, applicationId, status) {
-  return requestJson(`/applications/${applicationId}/status`, {
-    method: "PATCH",
-    token,
-    body: { status },
-    fallbackError: "Failed to update application status",
+export async function updateApplicationStatus(token, applicationId, status, interviewDate = null) {
+  const res = await fetch(`${API_BASE}/applications/${applicationId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      status,
+      ...(interviewDate ? { interviewDate } : {}),
+    }),
   });
+  const data = await parseJsonSafely(res);
+  if (!res.ok) {
+    throw new Error(data?.error || 'Failed to update application status');
+  }
+  return data;
 }
 
 // Candidate declines an extended job offer (SCRUM-309)

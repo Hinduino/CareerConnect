@@ -205,7 +205,9 @@ describe('Recruiter Applications page', () => {
 
   describe('status management (SCRUM-315)', () => {
     it('sends the new status to the API and shows the saved status', async () => {
-      updateApplicationStatus.mockResolvedValue({ application: { _id: 'app-2', status: 'Under Review' } });
+      updateApplicationStatus.mockResolvedValue({
+        application: { _id: 'app-2', status: 'Under Review', interviewDate: null },
+      });
       renderApplicationsPage();
       await screen.findByText('Omar Lee');
 
@@ -213,10 +215,10 @@ describe('Recruiter Applications page', () => {
       fireEvent.change(select, { target: { value: 'Under Review' } });
 
       await waitFor(() => expect(select).toHaveValue('Under Review'));
-      expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review');
+      expect(updateApplicationStatus).toHaveBeenCalledWith('token', 'app-2', 'Under Review', null);
     });
 
-    it('offers exactly the five recruiter statuses', async () => {
+    it('offers the five recruiter statuses for an early-stage application', async () => {
       renderApplicationsPage();
       await screen.findByText('Omar Lee');
 
@@ -228,7 +230,9 @@ describe('Recruiter Applications page', () => {
     });
 
     it('updated statuses are picked up by the status filter', async () => {
-      updateApplicationStatus.mockResolvedValue({ application: { _id: 'app-2', status: 'Offered' } });
+      updateApplicationStatus.mockResolvedValue({
+        application: { _id: 'app-2', status: 'Offered', interviewDate: null },
+      });
       renderApplicationsPage();
       await screen.findByText('Omar Lee');
 
@@ -253,9 +257,7 @@ describe('Recruiter Applications page', () => {
       expect(select).toHaveValue('Applied');
     });
 
-    // Known bug: on this page a failed update is silently reverted. The
-    // error is stored, but only displayed on the per-posting view.
-    it.failing('KNOWN BUG: shows an error message when a status update fails', async () => {
+    it('shows an error message when a status update fails', async () => {
       updateApplicationStatus.mockRejectedValue(new Error('Not authorized to update this application.'));
       renderApplicationsPage();
       await screen.findByText('Omar Lee');
@@ -270,7 +272,7 @@ describe('Recruiter Applications page', () => {
     // Known bug: PR #51 lets candidates decline offers, but the recruiter's
     // status menu has no "Offer Declined" option, so the dropdown falls
     // back to showing "Applied" for a declined offer.
-    it.failing('KNOWN BUG: shows "Offer Declined" to the recruiter instead of "Applied"', async () => {
+    it.failing('KNOWN BUG: shows Offer Declined in the status dropdown', async () => {
       fetchMyJobs.mockResolvedValue([jobs[0]]);
       fetchJobApplications.mockResolvedValue([
         application('app-5', 'Nina Park', 'nina@test.com', 'Offer Declined'),
@@ -294,5 +296,62 @@ describe('Recruiter Applications page', () => {
     await waitFor(() =>
       expect(fetchApplicationResumeBlobUrl).toHaveBeenCalledWith('token', 'app-2', { download: true })
     );
+  });
+});
+describe('Recruiter Applications page edge cases', () => {
+  const { act } = require('@testing-library/react');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuth.mockReturnValue({ token: 'token' });
+    fetchMyJobs.mockResolvedValue(jobs);
+    fetchJobApplications.mockImplementation(async (_token, jobId) => applicationsByJob[jobId]);
+  });
+
+  it('shows "Unavailable" when an applicant has no email', async () => {
+    fetchMyJobs.mockResolvedValue([jobs[0]]);
+    fetchJobApplications.mockResolvedValue([
+      { _id: 'app-9', status: 'Applied', createdAt: now, applicant: { name: 'No Email' }, resume: {} },
+    ]);
+    renderApplicationsPage();
+
+    expect(await screen.findByText('No Email')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  });
+
+  it('ignores applications that finish loading after leaving the page', async () => {
+    let resolveJobs;
+    fetchMyJobs.mockReturnValue(
+      new Promise((resolve) => {
+        resolveJobs = resolve;
+      })
+    );
+
+    const { unmount } = renderApplicationsPage();
+    unmount();
+
+    await act(async () => {
+      resolveJobs(jobs);
+    });
+
+    expect(fetchMyJobs).toHaveBeenCalledWith('token');
+  });
+
+  it('ignores a load failure that happens after leaving the page', async () => {
+    let rejectJobs;
+    fetchMyJobs.mockReturnValue(
+      new Promise((resolve, reject) => {
+        rejectJobs = reject;
+      })
+    );
+
+    const { unmount } = renderApplicationsPage();
+    unmount();
+
+    await act(async () => {
+      rejectJobs(new Error('late failure'));
+    });
+
+    expect(fetchMyJobs).toHaveBeenCalledWith('token');
   });
 });
