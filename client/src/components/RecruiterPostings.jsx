@@ -12,6 +12,7 @@ import { formatDueDate } from '../utils/dateUtils';
 
 const STATUS_OPTIONS = ['Applied', 'Under Review', 'Interview', 'Offered', 'Rejected'];
 
+// REFACTORED (SCRUM-383): Extracted repeated form styles and initial form state to reduce duplication
 const INITIAL_FORM_DATA = {
   title: '',
   company: '',
@@ -44,6 +45,7 @@ function RecruiterPostings() {
   const [postings, setPostings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // REFACTORED (SCRUM-383): Replaced blocking window.alert() calls with non-blocking inline feedback banner
   const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -57,6 +59,7 @@ function RecruiterPostings() {
   const [applicants, setApplicants] = useState([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
+  // REFACTORED (SCRUM-383): Added dateFilter state so recruiters can filter applicants by date as well as status
   const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState('desc');
 
@@ -70,6 +73,7 @@ function RecruiterPostings() {
     setFeedback({ type, message });
   };
 
+  // Fetch postings on load
   useEffect(() => {
     let isSubscribed = true;
 
@@ -133,6 +137,7 @@ function RecruiterPostings() {
       setModalOpen(false);
       refreshPostings();
     } catch (err) {
+      // REMOVED: alert(err.message || 'Error saving job posting.')
       showFeedback('error', err.message || 'Error saving job posting.');
     }
   };
@@ -147,6 +152,7 @@ function RecruiterPostings() {
       }
       showFeedback('success', result?.message || 'Posting archive status updated.');
     } catch (err) {
+      // REMOVED: alert(err.message || 'Error archiving posting.')
       showFeedback('error', err.message || 'Error archiving posting.');
     }
   };
@@ -160,6 +166,7 @@ function RecruiterPostings() {
       const data = await fetchApplicantsForJob(authToken, job._id);
       setApplicants(data || []);
     } catch (err) {
+      // REMOVED: alert(err.message || 'Error fetching applicants.')
       showFeedback('error', err.message || 'Error fetching applicants.');
     } finally {
       setLoadingApplicants(false);
@@ -174,6 +181,7 @@ function RecruiterPostings() {
       refreshPostings();
       showFeedback('success', `Applicant status updated to "${newStatus}".`);
     } catch (err) {
+      // REMOVED: alert(err.message || 'Error updating status.')
       showFeedback('error', err.message || 'Error updating status.');
     }
   };
@@ -207,12 +215,15 @@ function RecruiterPostings() {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      // REFACTORED (SCRUM-383): Revoke object URL after download to prevent browser memory leaks
       URL.revokeObjectURL(url);
     } catch (err) {
+      // REMOVED: alert(err.message || 'Error downloading resume.')
       showFeedback('error', err.message || 'Error downloading resume.');
     }
   };
 
+  // REFACTORED (SCRUM-383): Added date filtering (YYYY-MM-DD match) alongside status filter and date sort
   const filteredApplicants = applicants
     .filter((app) => (statusFilter === 'All' ? true : app.status === statusFilter))
     .filter((app) => {
@@ -252,6 +263,7 @@ function RecruiterPostings() {
         </button>
       </div>
 
+      {/* Inline Feedback Banner (replaces window.alert) */}
       {feedback && (
         <div
           role={feedback.type === 'error' ? 'alert' : 'status'}
@@ -388,6 +400,7 @@ function RecruiterPostings() {
                 Review candidates, change statuses, and download resumes.
               </p>
             </div>
+            {/* Filter by Status, Filter by Date, and Sort controls */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <select
                 aria-label="Filter applicants by status"
